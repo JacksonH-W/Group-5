@@ -5,9 +5,9 @@ Email: boultonr@oregonstate.edu <br>
 Discord: pikadrago <br>
 Git Repo:
 
-Name <br>
-Email: <br>
-Discord: <br>
+Logan Bachman <br>
+Email: bachmanl@oregonstate.edu <br>
+Discord: loganbachman_43291<br>
 Git Repo:
 
 Name <br>
