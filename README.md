@@ -15,7 +15,7 @@ Email: happelwj@oregonstate.edu <br>
 Discord: jacksonhw <br>
 Git Repo:
 
-Name <br>
-Email: <br>
-Discord: <br>
+Name Ulises <br>
+Email: cordovau@oregonstate.edu<br>
+Discord: ulises_58165<br>
 Git Repo:
