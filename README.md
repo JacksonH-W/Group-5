@@ -1,21 +1,21 @@
 # Group-5
 
-Rustislav Boulton
-Email: boultonr@oregonstate.edu
-Discord: pikadrago
+Rustislav Boulton <br>
+Email: boultonr@oregonstate.edu <br>
+Discord: pikadrago <br>
 Git Repo:
 
-Name
-Email:
-Discord:
+Name <br>
+Email: <br>
+Discord: <br>
 Git Repo:
 
-Name
-Email:
-Discord:
+Name <br>
+Email: <br>
+Discord: <br>
 Git Repo:
 
-Name
-Email:
-Discord:
+Name <br>
+Email: <br>
+Discord: <br>
 Git Repo:
