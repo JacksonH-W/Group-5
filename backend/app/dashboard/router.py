@@ -1,7 +1,6 @@
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
-
-from app.db import supabase
+from db import supabase
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
