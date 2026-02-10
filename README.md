@@ -12,6 +12,6 @@ Name Jackson<br>
 Email: happelwj@oregonstate.edu <br>
 Discord: jacksonhw <br>
 
-Name Ulises <br>
+Ulises Cordova<br>
 Email: cordovau@oregonstate.edu<br>
 Discord: ulises_58165<br>
