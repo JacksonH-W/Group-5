@@ -1,6 +1,9 @@
+from app.db import supabase
+from app.auth.dependencies import get_current_user
+from app.lessons.schemas import LessonResponse, LessonListResponse
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
-from db import supabase
+from app.db import supabase
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 

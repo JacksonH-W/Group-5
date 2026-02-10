@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, Request
-from db import supabase
+from app.db import supabase
 
 # Get the current user in the session
 def get_current_user(request: Request) -> dict:

@@ -1,9 +1,10 @@
-from auth.auth import UserRegister, UserLogin, UserResponse
-from auth.security import hash_password, verify_password
-from auth.dependencies import get_current_user
-from fastapi import APIRouter, HTTPException, Query, status, Request
 from uuid import UUID
-from db import supabase
+from app.db import supabase
+from app.auth.security import hash_password, verify_password
+from app.auth.dependencies import get_current_user
+from app.auth.auth import UserRegister, UserLogin, UserResponse
+from fastapi import APIRouter, HTTPException, Query, status, Request
+
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
