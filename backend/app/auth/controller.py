@@ -23,6 +23,8 @@ def register(user_data: UserRegister, request: Request):
             detail="Username or email already exists"
         )
     
+    print("PW length:", len(user_data.password), "bytes:", len(user_data.password.encode("utf-8")))
+
     # Hash password and create user
     hashed_password = hash_password(user_data.password)
     
