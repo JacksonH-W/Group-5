@@ -1,14 +1,16 @@
-# Run this from backend folder, to check if the server is running: python -m uvicorn app.main:app --reload
+# Run this from backend folder, to check if the server is running: python -m uvicorn app.main:app --reload cd
 
-from fastapi import FastAPI
 import os
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.auth.controller import router as auth_router
 from app.dashboard.router import router as dashboard_router
 from app.lessons.router import router as lessons_router  
+from app.practice.router import router as practice_router
 
 app = FastAPI(title="Type2Code API")
+app.include_router(practice_router)
 
 # Middleware for the session
 app.add_middleware(
