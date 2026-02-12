@@ -1,4 +1,4 @@
-# Run this from backend folder, to check if the server is running: python -m uvicorn app.main:app --reload cd
+# Run this from backend folder, to check if the server is running: python -m uvicorn app.main:app --reload
 
 import os
 from fastapi import FastAPI
