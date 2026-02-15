@@ -1,1 +1,15 @@
 backend/.env
+.env
+
+.venv/
+venv/
+
+__pycache__/
+*.pyc
+*.pyo
+
+cookies.txt
+
+.DS_Store
+
+
