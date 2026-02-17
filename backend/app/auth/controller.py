@@ -3,7 +3,7 @@ from app.db import supabase
 from app.auth.security import hash_password, verify_password
 from app.auth.dependencies import get_current_user
 from app.auth.auth import UserRegister, UserLogin, UserResponse
-from fastapi import APIRouter, HTTPException, Query, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -83,3 +83,8 @@ def logout(request: Request):
     """Logout user and clear session"""
     request.session.clear()
     return None
+
+# Return current authenticated user from session
+@router.get("/me", response_model=UserResponse)
+def me(current_user: dict = Depends(get_current_user)):
+    return current_user

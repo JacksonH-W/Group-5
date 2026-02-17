@@ -1,0 +1,35 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.navbar-brand {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.navbar-username {
+  color: #ffffff;
+}
+
+.btn-logout {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  background-color: #ffffff;
+  border: none;
+}

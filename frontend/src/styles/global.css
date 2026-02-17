@@ -1,0 +1,42 @@
+:root {
+  --color-primary: #1a6fc4;
+  --color-primary-dark: #145aa0;
+  --color-background: #ffffff;
+  --color-surface: #f5f7fa;
+  --color-border: #cccccc;
+  --color-text: #1a1a1a;
+  --color-text-muted: #555555;
+  --color-error: #c0392b;
+  --color-error-bg: #fdf3f2;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:visited {
+  color: var(--color-primary);
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+}
