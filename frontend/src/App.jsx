@@ -3,8 +3,9 @@ import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import DashboardPage from './pages/DashboardPage'
+import LessonsPage from './pages/LessonsPage'
 import PracticePage from './pages/PracticePage'
-
 
 function App() {
   return (
@@ -15,8 +16,8 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route element={<PrivateRoute />}>
             {/* Protected routes, add your pages here */}
-            <Route path="/dashboard" element={<div>Dashboard (placeholder)</div>} />
-            <Route path="/lessons" element={<div>Lessons (placeholder)</div>} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/lessons" element={<LessonsPage />} />
             <Route path="/practice/:lessonId" element={<PracticePage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
