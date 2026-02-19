@@ -12,7 +12,7 @@ To startup the software, you will want to run "uvicorn app.main:app --reload" to
 To run the software, we will have it hosted on a publicly accessible web page, which is currently a work in progress (WIP).
 
 <h3>How to report a bug</h3>
-We will be using GitHub issues to track bugs and features. To report an issue please open a new issue, GitHub → Issues → “New Issue”, here is where you can report an issue here: https://github.com/JacksonH-W/Group-5/issues/new. Here is an example of what reporting an issue could look like https://github.com/JacksonH-W/Group-5/tree/main/docs/example-issue/bug-report-example.md. 
+We will be using GitHub issues to track bugs and features. To report an issue please open a new issue, GitHub → Issues → “New Issue”, here is where you can report an issue here: https://github.com/JacksonH-W/Group-5/issues/new/choose. Here is an example of what reporting an issue could look like https://github.com/JacksonH-W/Group-5/tree/main/docs/example-issue/bug-report-example.md. 
 
 <h3>Known bugs</h3>
 We are early in development as of now, this brings out many bugs while setting up. The following issues or limitations are currently known. 
