@@ -3,4 +3,4 @@ uvicorn[standard]
 python-dotenv
 supabase
 itsdangerous
-bcrypt
+passlib[bcrypt]
