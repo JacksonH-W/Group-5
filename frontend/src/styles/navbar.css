@@ -2,34 +2,64 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.75rem;
   background-color: var(--color-primary);
-  color: #ffffff;
 }
 
+/* Left-side */
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+/* Type2Code-Logo */
 .navbar-brand {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: white;
   text-decoration: none;
+  letter-spacing: 0.3px;  
 }
 
-.navbar-user {
+/*Links */
+.navbar-links {
   display: flex;
   align-items: center;
   gap: 1rem;
-  font-size: 0.875rem;
 }
 
-.navbar-username {
+.navbar-link {
+  color: var(--color-nav-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.navbar-link.active {
   color: #ffffff;
 }
 
+/* Right-side */
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.navbar-username {
+  color: var(--color-nav-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/*Logout */
 .btn-logout {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--color-primary);
   background-color: #ffffff;
   border: none;
+  border-radius: 3px;
 }

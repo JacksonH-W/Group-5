@@ -1,36 +1,88 @@
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import '../styles/dashboard.css'
+import '../styles/lessonsGrid.css'
 
-const LESSONS = [
-    { id: 1, title: 'Lesson 1: Basics', description: 'Warm-up: simple prompts and short answers.' },
-    { id: 2, title: 'Lesson 2: Variables', description: 'Practice turning text instructions into code.' },
-    { id: 3, title: 'Lesson 3: Conditionals', description: 'If/else practice with small tasks.' },
+const UNITS = [
+    {
+        id: 1,
+        title: 'Functions',
+        subtitle: 'Placeholder subtitle about functions',
+        lessons: [
+            { stepId: 1, label: 'function', locked: false },
+            { stepId: 2, label: 'hello()', locked: false },
+            { stepId: 3, label: '{ }', locked: false },
+            { stepId: 4, label: 'return', locked: false },
+            { stepId: 5, label: '"Hello";', locked: false },
+            { stepId: 6, label: 'Combine', locked: true }, 
+        ],
+    },
+    {
+        id: 2,
+        title: 'Variables',
+        subtitle: 'Placeholder subtitle about variables',
+        lessons: [
+            { stepId: 1, label: 'let', locked: false },
+            { stepId: 2, label: 'const', locked: false },
+            { stepId: 3, label: '=', locked: false },
+            { stepId: 4, label: 'name', locked: true },
+            { stepId: 5, label: '"Rustic"', locked: true },
+            { stepId: 6, label: 'Combine', locked: true },
+        ],
+    },
 ]
 
 export default function LessonsPage() {
     return (
         <div className="app-shell">
             <NavBar />
-            <main className="page">
-                <div className="page-header">
-                    <h1 className="page-title">Place holder text: Lessons</h1>
-                    <p className="page-subtitle">Place holder text: Choose a lesson to practice.</p>
+
+            <main className="lessons-shell">
+                <div className="lessons-topline">
+                    <div className="lessons-metrics">
+                        <span>0% progress</span>
+                        <span>0 stars</span>
+                        <span>0 points</span>
+                    </div>
                 </div>
 
-                <div className="list">
-                    {LESSONS.map((lesson) => (
-                        <div className="list-item" key={lesson.id}>
-                            <div className="list-item-main">
-                                <div className="list-item-title">{lesson.title}</div>
-                                <div className="list-item-subtitle">{lesson.description}</div>
-                            </div>
-                            <Link className="btn-primary btn-inline" to={`/practice/${lesson.id}`}>
-                                Place holder text: Practice
-                            </Link>
+                <h1 className="lessons-title">Lessons</h1>
+
+                {UNITS.map((unit) => (
+                    <section key={unit.id} className="unit-section">
+                        <div className="unit-header">
+                            <h2 className="unit-title">{unit.title}</h2>
+                            <p className="unit-subtitle">{unit.subtitle}</p>
                         </div>
-                    ))}
-                </div>
+
+                        <div className="lessons-grid">
+                            {unit.lessons.map((l, idx) => {
+                                const tile = (
+                                    <div className={`tile tile-mini ${l.locked ? 'locked' : ''}`}>
+                                        <div className="tile-num">{idx + 1}</div>
+                                        {l.locked && <div className="tile-lock">🔒</div>}
+                                        <div className="tile-body">
+                                            <div className="tile-name">{l.label}</div>
+                                            <div className="tile-focus">Mini lesson</div>
+                                        </div>
+                                        <div className="tile-footer">
+                                            <div className="tile-muted">{l.locked ? 'Locked' : 'Click to begin'}</div>
+                                        </div>
+                                    </div>
+                                )
+                                if (l.locked) return <div key={l.stepId}>{tile}</div>
+                                return (
+                                    <Link
+                                        key={l.stepId}
+                                        to={`/practice/${unit.id}/${l.stepId}`}
+                                        className="tile-link"
+                                    >
+                                        {tile}
+                                    </Link>
+                                )
+                            })}
+                        </div>
+                    </section>
+                ))}
             </main>
         </div>
     )

@@ -1,6 +1,7 @@
 # Environment variables
 .env
 backend/.env
+backend/.env.example
 
 # Python virtual environments
 .venv/

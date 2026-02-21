@@ -1,8 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import '../styles/navbar.css'
 
-// Currently not implemented in dashboard, shows user info and logout button
 export default function NavBar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -14,9 +13,30 @@ export default function NavBar() {
 
   return (
     <nav className="navbar">
-      <Link to="/dashboard" className="navbar-brand">
-        Type2Code
-      </Link>
+      <div className="navbar-left">
+        <NavLink to="/lessons" className="navbar-brand">
+          Type2Code
+        </NavLink>
+
+        {user && (
+          <div className="navbar-links">
+            <NavLink
+              to="/practice/1/1"
+              className={({ isActive }) => `navbar-link ${isActive ? 'active' : ''}`}
+            >
+              Practice
+            </NavLink>
+
+            <NavLink
+              to="/game"
+              className={({ isActive }) => `navbar-link ${isActive ? 'active' : ''}`}
+            >
+              Games
+            </NavLink>
+          </div>
+        )}
+      </div>
+
       {user && (
         <div className="navbar-user">
           <span className="navbar-username">{user.username}</span>
