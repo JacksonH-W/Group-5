@@ -23,9 +23,8 @@ jobs:
       # Minimal sanity check (prevents "missing dependency" surprises)
       - name: Import app
         env:
-          SECRET_KEY: "ci-dev"
           SUPABASE_URL: "http://localhost"
-          SERVICE_ROLE_KEY: "ci-dev"
+          SUPABSE_SERVICE_ROLE_KEY: "ci-dev"
         run: |
           python -c "from app.main import app; print('backend import ok')"
         working-directory: backend
