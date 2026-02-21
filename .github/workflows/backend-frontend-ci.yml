@@ -24,7 +24,7 @@ jobs:
       - name: Import app
         env:
           SUPABASE_URL: "http://localhost"
-          SUPABSE_SERVICE_ROLE_KEY: "ci-dev"
+          SUPABASE_SERVICE_ROLE_KEY: "ci-dev"
         run: |
           python -c "from app.main import app; print('backend import ok')"
         working-directory: backend
