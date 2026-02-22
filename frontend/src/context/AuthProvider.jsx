@@ -1,4 +1,5 @@
 import { useReducer, useEffect } from 'react'
+import { AuthContext } from './AuthContext'
 import {
   getMe,
   login as apiLogin,
