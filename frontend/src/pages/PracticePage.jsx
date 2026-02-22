@@ -63,7 +63,6 @@ export default function PracticePage() {
     const [typed, setTyped] = useState('')
     const [wrongCount, setWrongCount] = useState(0)
     const [fixedCount, setFixedCount] = useState(0)
-    const [done, setDone] = useState(false)
     const [perRow, setPerRow] = useState(getPerRow())
 
     useEffect(() => {
@@ -73,10 +72,6 @@ export default function PracticePage() {
     }, [])
 
     useEffect(() => {
-        setTyped('')
-        setWrongCount(0)
-        setFixedCount(0)
-        setDone(false)
         inputRef.current?.focus()
     }, [unitId, stepId])
 
@@ -84,6 +79,10 @@ export default function PracticePage() {
     const expectedChar = typed.length < target.length ? target[typed.length] : null
 
     function goNext() {
+	setTyped('')
+	setWrongCount(0)
+	setFixedCount(0)
+
         const currentIndex = unit.lessons.findIndex(l => l.stepId === Number(stepId))
         const next = unit.lessons[currentIndex + 1]
         if (next) navigate(`/practice/${unit.id}/${next.stepId}`)
@@ -130,11 +129,13 @@ export default function PracticePage() {
         e.preventDefault()
     }
 
-    useEffect(() => {
-        if (!done && typed.length === target.length) {
-            setDone(true)
-        }
-    }, [typed, target.length, done])
+   // useEffect(() => {
+   //     if (!done && typed.length === target.length) {
+   //         setDone(true)
+   //     }
+   // }, [typed, target.length, done])
+	
+    const done = typed.length === target.length
 
     return (
         <div className="app-shell">
@@ -200,14 +201,17 @@ export default function PracticePage() {
 
 function ChunkGrid({ target, typed }) {
     const lines = target.split('\n')
-    let globalIndex = 0
+    const lineStarts = lines.reduce((acc, line, i) => {
+        if (i === 0) acc.push(0)
+        else acc.push(acc[i - 1] + lines[i - 1].length + 1) // +1 for '\n'
+        return acc
+    }, [])	
 
     return (
         <div className="type-grid">
             {lines.map((line, lineIdx) => {
                 const chars = line.split('')
-                const startIndex = globalIndex
-                globalIndex += chars.length + 1 
+                const startIndex = lineStarts[lineIdx]
 
                 return (
                     <div key={lineIdx} className="type-line">

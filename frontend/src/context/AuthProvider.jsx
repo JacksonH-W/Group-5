@@ -1,12 +1,10 @@
-import { createContext, useContext, useReducer, useEffect } from 'react'
+import { useReducer, useEffect } from 'react'
 import {
   getMe,
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
 } from '../api/auth'
-
-const AuthContext = createContext(null)
 
 function authReducer(state, action) {
   switch (action.type) {
@@ -53,10 +51,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
 }
