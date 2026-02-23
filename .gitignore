@@ -1,7 +1,10 @@
 # Environment variables
 .env
+.env.anon
+.env.admin
 backend/.env
-backend/.env.example
+frontend/.env.local
+# Dont ignore .env.example for group testing
 
 # Python virtual environments
 .venv/
