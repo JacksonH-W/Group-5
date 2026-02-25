@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 10
     strategy: 
       matrix: 
-        os: [ubunty-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
