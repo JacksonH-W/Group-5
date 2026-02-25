@@ -109,3 +109,33 @@
   justify-content: center;
   margin-top: 1.25rem;
 }
+
+.start-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+
+.start-overlay-card {
+  border: 1px solid rgba(0,0,0,0.12);
+  background: white;
+  border-radius: 12px;
+  padding: 14px 16px;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+.start-title {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.start-sub {
+  opacity: 0.75;
+  font-size: 13px;
+}
