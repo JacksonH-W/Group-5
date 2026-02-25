@@ -16,7 +16,7 @@ elif ENV_ANON.exists():
     load_dotenv(dotenv_path=ENV_ANON, override=False)
     print("Loaded .env.anon")
 else:
-    raise RuntimeError("No .env.admin or .env.anon found in Group-5 root. Using environment variables instead")
+    print("No .env.admin or .env.anon found in Group-5 root. Using environment variables instead")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
@@ -36,6 +36,6 @@ if SUPABASE_SERVICE_ROLE_KEY:
 else:
     print("Supabase admin client: disabled")
 
-supabase: Client | NONE = supabase_admin or supabase_public
+supabase: Client | None = supabase_admin or supabase_public
 if supabase is None:
     raise RuntimeError("No valid Supabase credentials found")
