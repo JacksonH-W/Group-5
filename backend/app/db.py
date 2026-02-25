@@ -36,6 +36,6 @@ if SUPABASE_SERVICE_ROLE_KEY:
 else:
     print("Supabase admin client: disabled")
 
-supabase: Client | NONE supabase_admin or supabase_public
+supabase: Client | NONE = supabase_admin or supabase_public
 if supabase is None:
     raise RuntimeError("No valid Supabase credentials found")
