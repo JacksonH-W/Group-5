@@ -25,6 +25,10 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 if not SUPABASE_URL:
     raise RuntimeError("Missing SUPABASE_URL in environment")
 
+supabase_public: Client | None = None
+if SUPABASE_ANON_KEY:
+    supabase_public = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
 supabase_admin: Client | None = None 
 if SUPABASE_SERVICE_ROLE_KEY:
     supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -33,6 +37,5 @@ else:
     print("Supabase admin client: disabled")
 
 supabase = Client = supabase_admin or supabase_public
-
 if supabase is None:
     raise RuntimeError("No valid Supabase credentials found")
