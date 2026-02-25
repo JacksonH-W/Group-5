@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/lessonsGrid.css'
@@ -14,11 +14,9 @@ import {
 
 export default function LessonsPage() {
   const progress = loadProgress()
-  const [locksDisabled, setLocksDisabled] = useState(false)
 
-  useEffect(() => {
-    setLocksDisabled(getUnlocksOverride())
-  }, [])
+  // Lazy init: read localStorage one time on mount (no useEffect needed)
+  const [locksDisabled, setLocksDisabled] = useState(() => getUnlocksOverride())
 
   const locks = computeLocks(UNITS, progress)
 
@@ -38,10 +36,7 @@ export default function LessonsPage() {
             <span>Progress (local)</span>
           </div>
 
-          <button
-            className="unlock-toggle"
-            onClick={toggleUnlocks}
-          >
+          <button className="unlock-toggle" onClick={toggleUnlocks}>
             Unlocks: {locksDisabled ? 'OFF' : 'ON'}
           </button>
         </div>
@@ -65,6 +60,7 @@ export default function LessonsPage() {
                   <div className={`tile tile-mini ${locked ? 'locked' : ''}`}>
                     <div className="tile-num">{idx + 1}</div>
 
+                    {/* no icons, just text */}
                     {locked && <div className="tile-lock">Locked</div>}
                     {done && !locked && <div className="tile-lock">Done</div>}
 
