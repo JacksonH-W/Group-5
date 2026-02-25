@@ -5,3 +5,5 @@ supabase
 itsdangerous
 passlib[bcrypt]
 pydantic[email]
+pytest
+pytest-cov
