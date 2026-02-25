@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
     env_file:
-      - .env.anon
+      - .env.admin
     ports:
       - "8000:8000"
     volumes:
