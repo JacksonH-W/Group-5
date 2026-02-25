@@ -10,13 +10,13 @@ ENV_ADMIN = ROOT_DIR / ".env.admin"
 ENV_ANON = ROOT_DIR / ".env.anon"
 
 if ENV_ADMIN.exists():
-    load_dotenv(dotenv_path=ENV_ADMIN)
+    load_dotenv(dotenv_path=ENV_ADMIN, override = FALSE)
     print("Loaded .env.admin")
 elif ENV_ANON.exists():
-    load_dotenv(dotenv_path=ENV_ANON)
+    load_dotenv(dotenv_path=ENV_ANON, override = FALSE)
     print("Loaded .env.anon")
 else:
-    raise RuntimeError("No .env.admin or .env.anon found in Group-5 root")
+    raise RuntimeError("No .env.admin or .env.anon found in Group-5 root. Using environment variables instead")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
