@@ -14,13 +14,12 @@ backend-install:
 	cd backend && . .venv/bin/activate && python -m pip install -U pip && pip install -r requirements.txt
 
 backend-dev:
-	cd backend && . .venv/bin/activate && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
-
+	cd backend && . .venv/bin/activate && set -a && . ../.env.admin && set +a && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 frontend-install:
 	cd frontend && npm install
 
 frontend-dev:
-	cd frontend && npm run dev -- --host 127.0.0.1 --port 3001
+	cd frontend && npm run dev -- --host 127.0.0.1 --port 3000
 
 dev:
 	@echo "Run these in two terminals:"
