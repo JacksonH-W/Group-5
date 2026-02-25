@@ -10,10 +10,10 @@ ENV_ADMIN = ROOT_DIR / ".env.admin"
 ENV_ANON = ROOT_DIR / ".env.anon"
 
 if ENV_ADMIN.exists():
-    load_dotenv(dotenv_path=ENV_ADMIN, override = FALSE)
+    load_dotenv(dotenv_path=ENV_ADMIN, override=False)
     print("Loaded .env.admin")
 elif ENV_ANON.exists():
-    load_dotenv(dotenv_path=ENV_ANON, override = FALSE)
+    load_dotenv(dotenv_path=ENV_ANON, override=False)
     print("Loaded .env.anon")
 else:
     raise RuntimeError("No .env.admin or .env.anon found in Group-5 root. Using environment variables instead")
@@ -36,6 +36,6 @@ if SUPABASE_SERVICE_ROLE_KEY:
 else:
     print("Supabase admin client: disabled")
 
-supabase = Client = supabase_admin or supabase_public
+supabase: Client | NONE supabase_admin or supabase_public
 if supabase is None:
     raise RuntimeError("No valid Supabase credentials found")
