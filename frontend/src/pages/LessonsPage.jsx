@@ -1,13 +1,32 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/lessonsGrid.css'
 
 import { UNITS } from '../data/units'
-import { loadProgress, computeLocks, isCompleted } from '../utils/progress'
+import {
+  loadProgress,
+  computeLocks,
+  isCompleted,
+  getUnlocksOverride,
+  setUnlocksOverride,
+} from '../utils/progress'
 
 export default function LessonsPage() {
   const progress = loadProgress()
+  const [locksDisabled, setLocksDisabled] = useState(false)
+
+  useEffect(() => {
+    setLocksDisabled(getUnlocksOverride())
+  }, [])
+
   const locks = computeLocks(UNITS, progress)
+
+  function toggleUnlocks() {
+    const next = !locksDisabled
+    setUnlocksOverride(next)
+    setLocksDisabled(next)
+  }
 
   return (
     <div className="app-shell">
@@ -18,6 +37,13 @@ export default function LessonsPage() {
           <div className="lessons-metrics">
             <span>Progress (local)</span>
           </div>
+
+          <button
+            className="unlock-toggle"
+            onClick={toggleUnlocks}
+          >
+            Unlocks: {locksDisabled ? 'OFF' : 'ON'}
+          </button>
         </div>
 
         <h1 className="lessons-title">Lessons</h1>
@@ -31,20 +57,28 @@ export default function LessonsPage() {
 
             <div className="lessons-grid">
               {unit.lessons.map((l, idx) => {
-                const locked = locks?.[unit.id]?.[l.stepId] ?? false
+                const lockedByProgress = locks?.[unit.id]?.[l.stepId] ?? false
+                const locked = locksDisabled ? false : lockedByProgress
                 const done = isCompleted(progress, unit.id, l.stepId)
 
                 const tile = (
                   <div className={`tile tile-mini ${locked ? 'locked' : ''}`}>
                     <div className="tile-num">{idx + 1}</div>
-                    {locked && <div className="tile-lock">🔒</div>}
-                    {done && <div className="tile-lock">✅</div>}
+
+                    {locked && <div className="tile-lock">Locked</div>}
+                    {done && !locked && <div className="tile-lock">Done</div>}
+
                     <div className="tile-body">
                       <div className="tile-name">{l.label}</div>
-                      <div className="tile-focus">{done ? 'Completed' : 'Mini lesson'}</div>
+                      <div className="tile-focus">
+                        {done ? 'Completed' : 'Mini lesson'}
+                      </div>
                     </div>
+
                     <div className="tile-footer">
-                      <div className="tile-muted">{locked ? 'Locked' : 'Click to begin'}</div>
+                      <div className="tile-muted">
+                        {locked ? 'Locked' : 'Click to begin'}
+                      </div>
                     </div>
                   </div>
                 )
@@ -52,7 +86,11 @@ export default function LessonsPage() {
                 if (locked) return <div key={l.stepId}>{tile}</div>
 
                 return (
-                  <Link key={l.stepId} to={`/practice/${unit.id}/${l.stepId}`} className="tile-link">
+                  <Link
+                    key={l.stepId}
+                    to={`/practice/${unit.id}/${l.stepId}`}
+                    className="tile-link"
+                  >
                     {tile}
                   </Link>
                 )

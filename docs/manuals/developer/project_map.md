@@ -115,6 +115,28 @@ localStorage key: type2code_progress_v1
 - Lessons page reflects the current unlock state dynamically
 - Progress persists across page reloads
 
+## Tester / Developer Utilities
+
+### Unlock Override (Local Testing Only)
+To allow teammates to freely test lessons without completing prior steps, the frontend includes a **local unlock override**.
+
+Implementation:
+- File: `frontend/src/utils/progress.js`
+- Storage key: `type2code_unlocks_override_v1`
+- When enabled, all lesson locks are ignored
+
+Behavior:
+- This setting is **local only** (localStorage)
+- Does not affect other users
+- Does not persist across browsers or devices
+- Intended strictly for development and QA testing
+
+Usage:
+- When unlock override is enabled, all lessons become clickable
+- When disabled, normal progression rules apply
+
+This allows rapid UI and lesson testing without modifying progression logic.
+
 ### Testing note
 To reset progress during development or demos:
 ```js
