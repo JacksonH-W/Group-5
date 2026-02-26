@@ -24,13 +24,14 @@ jobs:
           pip install -r backend/requirements.txt
 
       # Minimal sanity check (prevents "missing dependency" surprises)
-      - name: Import app
+      - name: Run tests and coverage
+        working-directory: backend
         env:
+          PYTHONPATH: .
           SUPABASE_URL: "http://localhost"
           SUPABASE_SERVICE_ROLE_KEY: "ci-dev"
         run: |
           pytest --cov=app --cov-report=term-missing --cov-report=xml
-        working-directory: backend
       
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
