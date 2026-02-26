@@ -36,6 +36,11 @@ Install (Ubuntu/Debian):
 sudo apt update
 sudo apt install -y git docker.io docker-compose-plugin
 ```
+Arch Linux
+```bash
+sudo pacman -S git docker docker-compose docker-buildx
+```
+
 
 Check:
 ```bash
