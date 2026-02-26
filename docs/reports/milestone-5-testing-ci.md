@@ -77,4 +77,8 @@ The CI workflow is triggerd on any:
 - pull_request
 
 
+Jackson Happel-Walvatne
 
+For Milestone 5, I focused on frontend testing infrastructure and ensuring compatibility with our continuous integration (CI) environment. I set up Vitest for the React frontend and implemented passing unit tests for core application logic, specifically the progress-tracking and lesson-unlocking system. I verified local test execution and ensured the testing setup integrated cleanly with our existing Vite configuration.
+
+During this process, I identified and resolved several environment and CI-related issues, including React version conflicts, duplicate node_modules directories, JSX runtime mismatches, and dependency resolution problems that could have caused CI failures. I worked iteratively to stabilize the frontend test environment without introducing breaking changes to the main application.
