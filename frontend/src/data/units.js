@@ -2,112 +2,191 @@ export const UNITS = [
     {
       id: 1,
       title: 'Functions',
-      subtitle: 'Placeholder subtitle about functions',
+      subtitle: '',
       showKeyboard: true,
       lessons: [
         {
           stepId: 1,
-          label: 'function',
-          chunk: 'function',
-          repeats: 18,
+          label: 'Build a function',
           learnText:
-            'A function is a reusable action. In JavaScript, we start by writing the keyword function.',
+            'We will build a real function step by step. Each time you finish, it unlocks the next version.',
+          targets: [
+            'function',
+            'function hello',
+            'function hello()',
+            'function hello() { }',
+            'function hello() { return "Hello"; }',
+          ],
         },
         {
           stepId: 2,
-          label: 'hello()',
-          chunk: 'hello()',
-          repeats: 18,
+          label: 'Call the function',
           learnText:
-            'This is the function name and parentheses. You can call it later using hello().',
+            'Calling a function runs it. Parentheses and the semicolon matter.',
+          targets: [
+            'hello();',
+            'function hello() { return "Hello"; }\nhello();',
+          ],
         },
         {
           stepId: 3,
-          label: '{ }',
-          chunk: '{ }',
-          repeats: 18,
+          label: 'Parameters (inputs)',
           learnText:
-            'Curly braces hold the code that runs when the function is called.',
+            'A parameter is an input to a function. Here, name is the input.',
+          targets: [
+            'function greet(name) { }',
+            'function greet(name) { return "Hi " + name; }',
+            'function greet(name) { return "Hi " + name; }\ngreet("Rustic");',
+          ],
         },
         {
           stepId: 4,
-          label: 'return',
-          chunk: 'return',
-          repeats: 14,
+          label: 'Mini program',
           learnText:
-            'return sends a value back from the function.',
-        },
-        {
-          stepId: 5,
-          label: '"Hello";',
-          chunk: '"Hello";',
-          repeats: 14,
-          learnText:
-            'Strings are text values and must go inside quotation marks.',
-        },
-        {
-          stepId: 6,
-          label: 'Combine',
-          chunk: 'function hello() { return "Hello"; }',
-          repeats: 8,
-          learnText:
-            'Now combine everything into a complete function.',
+            'Type a tiny program: define a function, then call it.',
+          targets: [
+            'function hello() { return "Hello"; }\nhello();',
+          ],
         },
       ],
     },
+  
     {
       id: 2,
       title: 'Variables',
-      subtitle: 'Placeholder subtitle about variables',
+      subtitle: '',
       showKeyboard: true,
       lessons: [
         {
           stepId: 1,
-          label: 'let',
-          chunk: 'let',
-          repeats: 22,
+          label: 'Make a variable',
           learnText:
-            'let creates a variable that can be changed later.',
+            'A variable stores information you want to use later. We build the line piece by piece.',
+          targets: [
+            'let',
+            'let username',
+            'let username =',
+            'let username = "Rustic";',
+          ],
         },
         {
           stepId: 2,
-          label: 'const',
-          chunk: 'const',
-          repeats: 22,
+          label: 'Numbers (no quotes)',
           learnText:
-            'const creates a variable that should not be reassigned.',
+            'Numbers do not use quotes. This makes a score variable and increases it.',
+          targets: [
+            'let score = 0;',
+            'score = score + 1;',
+            'score = score + 1;\nscore = score + 1;',
+          ],
         },
         {
           stepId: 3,
-          label: '=',
-          chunk: '=',
-          repeats: 28,
+          label: 'const (should not change)',
           learnText:
-            '= assigns a value into a variable name.',
+            'Use const for values you do not want to reassign.',
+          targets: [
+            'const maxLives = 3;',
+            'let lives = maxLives;',
+            'const maxLives = 3;\nlet lives = maxLives;',
+          ],
         },
         {
           stepId: 4,
-          label: 'name',
-          chunk: 'name',
-          repeats: 16,
+          label: 'Mini program',
           learnText:
-            'Choose clear variable names that describe what they store.',
+            'Now type a tiny program using variables. Pay attention to quotes and semicolons.',
+          targets: [
+            'let username = "Rustic";\nlet score = 0;\nscore = score + 1;',
+          ],
+        },
+      ],
+    },
+  
+    {
+      id: 3,
+      title: 'If Statements',
+      subtitle: '',
+      showKeyboard: true,
+      lessons: [
+        {
+          stepId: 1,
+          label: 'If basics',
+          learnText:
+            'An if statement lets your program make decisions based on a condition.',
+          targets: [
+            'if',
+            'if (score >= 10) { }',
+            'if (score >= 10) {\n  // TODO\n}',
+          ],
         },
         {
-          stepId: 5,
-          label: '"Rustic"',
-          chunk: '"Rustic"',
-          repeats: 12,
+          stepId: 2,
+          label: 'If + else',
           learnText:
-            'Strings are text values and must go inside quotation marks.',
+            'else runs when the condition is false.',
+          targets: [
+            'if (score >= 10) { }\nelse { }',
+            'if (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+          ],
         },
         {
-          stepId: 6,
-          label: 'Combine',
-          chunk: 'let name = "Rustic";',
-          repeats: 10,
+          stepId: 3,
+          label: 'Exact match (===)',
           learnText:
-            'Declare a variable and assign a string value in one line.',
+            '=== checks if two values are exactly the same (including type).',
+          targets: [
+            'if (username === "Rustic") { }',
+            'if (username === "Rustic") {\n  // TODO\n}',
+          ],
+        },
+        {
+          stepId: 4,
+          label: 'Mini program',
+          learnText:
+            'Type a small decision program: set score, then check it.',
+          targets: [
+            'let score = 9;\nif (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+          ],
+        },
+      ],
+    },
+  
+    {
+      id: 4,
+      title: 'Loops (for)',
+      subtitle: '',
+      showKeyboard: true,
+      lessons: [
+        {
+          stepId: 1,
+          label: 'For loop header',
+          learnText:
+            'A for loop repeats code. It has: start; condition; update.',
+          targets: [
+            'for',
+            'for (let i = 0; i < 5; i = i + 1) { }',
+            'for (let i = 0; i < 5; i = i + 1) {\n  // TODO\n}',
+          ],
+        },
+        {
+          stepId: 2,
+          label: 'Loop body',
+          learnText:
+            'The braces hold the code that repeats. Indentation helps readability.',
+          targets: [
+            'for (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}',
+            'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}',
+          ],
+        },
+        {
+          stepId: 3,
+          label: 'Mini program',
+          learnText:
+            'Now type a tiny program: loop 5 times and increase score.',
+          targets: [
+            'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}',
+          ],
         },
       ],
     },

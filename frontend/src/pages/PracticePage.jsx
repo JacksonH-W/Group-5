@@ -35,8 +35,7 @@ export default function PracticePage() {
 
   const lesson = useMemo(
     () =>
-      unit.lessons.find((l) => l.stepId === Number(stepId)) ||
-      unit.lessons[0],
+      unit.lessons.find((l) => l.stepId === Number(stepId)) || unit.lessons[0],
     [unit, stepId]
   )
 
@@ -45,7 +44,14 @@ export default function PracticePage() {
   const [fixedCount, setFixedCount] = useState(0)
   const [perRow, setPerRow] = useState(getPerRow())
 
+  // used for "first keystroke" detection + overall UX
   const [hasStarted, setHasStarted] = useState(false)
+
+  // NEW: target progression inside a single lesson step
+  const [targetIndex, setTargetIndex] = useState(0)
+
+  // NEW: show overlay only once per lesson step (unitId/stepId)
+  const [overlayDismissed, setOverlayDismissed] = useState(false)
 
   function focusInput() {
     requestAnimationFrame(() => inputRef.current?.focus())
@@ -57,20 +63,41 @@ export default function PracticePage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // Reset local state when changing lesson
   useEffect(() => {
+    setTyped('')
+    setWrongCount(0)
+    setFixedCount(0)
+    setHasStarted(false)
+    setTargetIndex(0)
+    setOverlayDismissed(false) // ✅ overlay only shows at beginning of lesson step
     focusInput()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, stepId])
 
-  const target = useMemo(
-    () => buildGrid(lesson.chunk, lesson.repeats, perRow),
-    [lesson, perRow]
-  )
+  const useTargets = Array.isArray(lesson.targets) && lesson.targets.length > 0
 
-  const done = typed.length === target.length
+  const targets = useMemo(() => {
+    if (useTargets) return lesson.targets
+    // fallback to old behavior: repeated chunk grid
+    return [buildGrid(lesson.chunk, lesson.repeats, perRow)]
+  }, [lesson, perRow, useTargets])
+
+  const target = targets[Math.min(targetIndex, targets.length - 1)] ?? ''
+
+  // Only “done” when exact match (forces fixing mistakes)
+  const doneExact = typed === target
   const expectedChar = typed.length < target.length ? target[typed.length] : null
 
-  function completeAndNext() {
+  function resetTypingForNextTarget() {
+    setTyped('')
+    setWrongCount(0)
+    setFixedCount(0)
+    // ✅ do NOT reset hasStarted or overlayDismissed here
+    focusInput()
+  }
+
+  function completeAndNextLesson() {
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
@@ -79,6 +106,8 @@ export default function PracticePage() {
     setWrongCount(0)
     setFixedCount(0)
     setHasStarted(false)
+    setTargetIndex(0)
+    setOverlayDismissed(false)
 
     const idx = unit.lessons.findIndex((l) => l.stepId === Number(stepId))
     const next = unit.lessons[idx + 1]
@@ -86,19 +115,37 @@ export default function PracticePage() {
     else navigate('/lessons')
   }
 
+  function advance() {
+    if (useTargets && targetIndex < targets.length - 1) {
+      setTargetIndex((i) => i + 1)
+      resetTypingForNextTarget()
+      return
+    }
+    completeAndNextLesson()
+  }
+
   function onKeyDown(e) {
+    // first interaction detection
     if (
       !hasStarted &&
       (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
     ) {
       setHasStarted(true)
+      setOverlayDismissed(true) // ✅ if they start typing, overlay should never show again this step
     }
 
-    if (done) {
+    // If exact done: Space / ArrowRight advances
+    if (doneExact) {
       if (e.key === ' ' || e.key === 'ArrowRight') {
         e.preventDefault()
-        completeAndNext()
+        advance()
       }
+      return
+    }
+
+    // If user already filled the whole target but it's wrong, only allow backspace
+    if (typed.length >= target.length && e.key !== 'Backspace') {
+      e.preventDefault()
       return
     }
 
@@ -148,6 +195,14 @@ export default function PracticePage() {
 
             <div className="practice-sub">
               Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>
+              {useTargets && (
+                <>
+                  {' '}
+                  <span style={{ opacity: 0.7 }}>
+                    (Step {targetIndex + 1}/{targets.length})
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="practice-rules">
@@ -169,15 +224,17 @@ export default function PracticePage() {
 
         <div className="type-area">
           <div className="type-box">
-            {!hasStarted && typed.length === 0 && (
+            {!overlayDismissed && typed.length === 0 && (
               <div
                 className="start-overlay"
                 onMouseDown={() => {
                   setHasStarted(true)
+                  setOverlayDismissed(true)
                   focusInput()
                 }}
                 onClick={() => {
                   setHasStarted(true)
+                  setOverlayDismissed(true)
                   focusInput()
                 }}
                 role="presentation"
@@ -213,7 +270,7 @@ export default function PracticePage() {
             Fixed: <b className="fixed">{fixedCount}</b>
           </span>
 
-          {done && (
+          {doneExact && (
             <span className="done-hint">
               Done — press <b>Space</b> or <b>→</b> for next
             </span>
@@ -226,9 +283,9 @@ export default function PracticePage() {
           </div>
         )}
 
-        {done && (
+        {doneExact && (
           <div className="next-row">
-            <button className="btn-primary" onClick={completeAndNext}>
+            <button className="btn-primary" onClick={advance}>
               Next (Space / →)
             </button>
           </div>
