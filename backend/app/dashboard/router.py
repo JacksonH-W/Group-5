@@ -63,7 +63,7 @@ def get_dashboard_by_user_id(
         raise HTTPException(status_code=500, detail=f"Supabase RPC call failed {e}")
     
     data = getattr(resp, "data", None)
-    if data is not None:
+    if data is None:
         raise HTTPException(status_code=404, detail=f"No data returned")
 
     #in case supabase returns list as the data, checking
