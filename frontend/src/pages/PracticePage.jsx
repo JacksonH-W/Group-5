@@ -33,7 +33,6 @@ export default function PracticePage() {
     [unitId]
   )
 
-  // IMPORTANT: this expects your units to use unit.lessons
   const lesson = useMemo(
     () =>
       unit.lessons.find((l) => l.stepId === Number(stepId)) ||
@@ -46,6 +45,12 @@ export default function PracticePage() {
   const [fixedCount, setFixedCount] = useState(0)
   const [perRow, setPerRow] = useState(getPerRow())
 
+  const [hasStarted, setHasStarted] = useState(false)
+
+  function focusInput() {
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
   useEffect(() => {
     const onResize = () => setPerRow(getPerRow())
     window.addEventListener('resize', onResize)
@@ -53,7 +58,8 @@ export default function PracticePage() {
   }, [])
 
   useEffect(() => {
-    inputRef.current?.focus()
+    focusInput()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, stepId])
 
   const target = useMemo(
@@ -65,17 +71,15 @@ export default function PracticePage() {
   const expectedChar = typed.length < target.length ? target[typed.length] : null
 
   function completeAndNext() {
-    // Save completion
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
 
-    // reset UI state
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
+    setHasStarted(false)
 
-    // Next lesson in same unit, else back to lessons
     const idx = unit.lessons.findIndex((l) => l.stepId === Number(stepId))
     const next = unit.lessons[idx + 1]
     if (next) navigate(`/practice/${unit.id}/${next.stepId}`)
@@ -83,7 +87,13 @@ export default function PracticePage() {
   }
 
   function onKeyDown(e) {
-    // finished: Space / ArrowRight advances
+    if (
+      !hasStarted &&
+      (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
+    ) {
+      setHasStarted(true)
+    }
+
     if (done) {
       if (e.key === ' ' || e.key === 'ArrowRight') {
         e.preventDefault()
@@ -128,14 +138,26 @@ export default function PracticePage() {
 
       <main
         className="practice-shell"
-        onMouseDown={() => inputRef.current?.focus()}
+        onMouseDown={focusInput}
+        onClick={focusInput}
+        onPointerDown={focusInput}
       >
         <div className="practice-top">
           <div>
             <h1 className="practice-h1">{unit.title}</h1>
+
             <div className="practice-sub">
               Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>
             </div>
+
+            <div className="practice-rules">
+              Click the box and type <b>exactly</b> what you see (spaces count).
+              Use <b>Backspace</b> to fix.
+            </div>
+
+            {lesson.learnText && (
+              <div className="practice-learn">{lesson.learnText}</div>
+            )}
           </div>
 
           <div className="practice-nav">
@@ -147,6 +169,29 @@ export default function PracticePage() {
 
         <div className="type-area">
           <div className="type-box">
+            {!hasStarted && typed.length === 0 && (
+              <div
+                className="start-overlay"
+                onMouseDown={() => {
+                  setHasStarted(true)
+                  focusInput()
+                }}
+                onClick={() => {
+                  setHasStarted(true)
+                  focusInput()
+                }}
+                role="presentation"
+                aria-hidden="true"
+              >
+                <div className="start-overlay-card">
+                  <div className="start-title">Click here to start typing</div>
+                  <div className="start-sub">
+                    Then type the <b>highlighted</b> character (spaces count)
+                  </div>
+                </div>
+              </div>
+            )}
+
             <ChunkGrid target={target} typed={typed} />
           </div>
 
@@ -197,7 +242,7 @@ function ChunkGrid({ target, typed }) {
   const lines = target.split('\n')
   const lineStarts = lines.reduce((acc, line, i) => {
     if (i === 0) acc.push(0)
-    else acc.push(acc[i - 1] + lines[i - 1].length + 1) // +1 for '\n'
+    else acc.push(acc[i - 1] + lines[i - 1].length + 1)
     return acc
   }, [])
 
@@ -239,7 +284,8 @@ const KEY_ROWS = [
 ]
 
 function Keyboard({ expected }) {
-  const keyToHighlight = expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
+  const keyToHighlight =
+    expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
 
   return (
     <div className="keyboard">

@@ -16,6 +16,20 @@
   margin-top: 0.25rem;
 }
 
+/* NEW: rules + learn text */
+.practice-rules {
+  margin-top: 0.5rem;
+  color: var(--color-text-muted);
+  font-weight: 800;
+}
+
+.practice-learn {
+  margin-top: 0.35rem;
+  color: var(--color-text);
+  font-weight: 700;
+  opacity: 0.9;
+}
+
 .practice-top {
   display: flex;
   justify-content: space-between;
@@ -56,12 +70,15 @@
 .char.wrong { color: var(--color-wrong); }
 .char.cursor { border-bottom: 4px solid var(--color-primary-dark); padding-bottom: 2px; }
 
+/* FIX: keep input focusable (remove pointer-events: none), keep it invisible */
 .hidden-capture {
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   opacity: 0;
-  pointer-events: none;
   height: 1px;
   width: 1px;
+  z-index: -1;
 }
 
 .practice-hud {
