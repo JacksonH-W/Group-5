@@ -38,12 +38,12 @@ Group-5/
 
 ## 1) Create required environment files
 
-### A) Backend env: `.env.anon` (repo root)
+### A) Backend env: `.env` (repo root)
 
-Create `Group-5/.env.anon`:
+Create `Group-5/.env`:
 
 ```bash
-cat > .env.admin <<'EOF'
+cat > .env <<'EOF'
 # Backend / server-side configuration
 # Fill these with your real values.
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
