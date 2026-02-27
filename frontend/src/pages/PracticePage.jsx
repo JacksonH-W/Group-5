@@ -1,3 +1,4 @@
+// frontend/src/pages/PracticePage.jsx
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
@@ -44,14 +45,71 @@ export default function PracticePage() {
   const [fixedCount, setFixedCount] = useState(0)
   const [perRow, setPerRow] = useState(getPerRow())
 
-  // used for "first keystroke" detection + overall UX
   const [hasStarted, setHasStarted] = useState(false)
-
-  // NEW: target progression inside a single lesson step
   const [targetIndex, setTargetIndex] = useState(0)
-
-  // NEW: show overlay only once per lesson step (unitId/stepId)
   const [overlayDismissed, setOverlayDismissed] = useState(false)
+
+  // Adaptive tier system (persisted per step)
+  const [tier, setTier] = useState(1)
+  const startTimeRef = useRef(null)
+
+  // --------- localStorage helpers ----------
+  function tierKey() {
+    return `type2code:tier:${unitId}:${stepId}`
+  }
+
+  function loadTier() {
+    const raw = localStorage.getItem(tierKey())
+    const n = Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : 1
+  }
+
+  function saveTier(nextTier) {
+    localStorage.setItem(tierKey(), String(nextTier))
+  }
+
+  // streak persists per step
+  const streakKey = useMemo(
+    () => `type2code:streak:${unitId}:${stepId}`,
+    [unitId, stepId]
+  )
+
+  function loadStreak() {
+    const raw = localStorage.getItem(streakKey)
+    try {
+      const s = raw ? JSON.parse(raw) : null
+      return {
+        promote: Number(s?.promote) || 0,
+        demote: Number(s?.demote) || 0,
+      }
+    } catch {
+      return { promote: 0, demote: 0 }
+    }
+  }
+
+  function saveStreak(s) {
+    localStorage.setItem(streakKey, JSON.stringify(s))
+  }
+
+  function clearTierAndStreak() {
+    localStorage.removeItem(streakKey)
+    localStorage.removeItem(tierKey())
+    setTier(1)
+    setTargetIndex(0)
+    resetTypingForNextTarget()
+  }
+
+  // Simple rules (can be overridden per-lesson via lesson.tierRules)
+  const rules = useMemo(() => {
+    const defaults = {
+      minTier: 1,
+      maxTier: 3,
+      promoteIf: { wpm: 28, accuracy: 0.95, streak: 2 },
+      demoteIf: { wpm: 14, accuracy: 0.85, streak: 2 },
+    }
+    return { ...defaults, ...(lesson.tierRules || {}) }
+  }, [lesson])
+  // ----------------------------------------
 
   function focusInput() {
     requestAnimationFrame(() => inputRef.current?.focus())
@@ -63,29 +121,41 @@ export default function PracticePage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Reset local state when changing lesson
+  // Reset local state when changing lesson (DO NOT clear streak here; it should persist per step)
   useEffect(() => {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
     setHasStarted(false)
     setTargetIndex(0)
-    setOverlayDismissed(false) // ✅ overlay only shows at beginning of lesson step
+    setOverlayDismissed(false)
+    startTimeRef.current = null
+
+    const t = loadTier()
+    setTier(t)
+
     focusInput()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, stepId])
 
+  const tierKeyStr = String(tier)
+
+  const hasTierTargets =
+    lesson.targetsByTier &&
+    typeof lesson.targetsByTier === 'object' &&
+    Array.isArray(lesson.targetsByTier[tierKeyStr]) &&
+    lesson.targetsByTier[tierKeyStr].length > 0
+
   const useTargets = Array.isArray(lesson.targets) && lesson.targets.length > 0
 
   const targets = useMemo(() => {
+    if (hasTierTargets) return lesson.targetsByTier[tierKeyStr]
     if (useTargets) return lesson.targets
-    // fallback to old behavior: repeated chunk grid
     return [buildGrid(lesson.chunk, lesson.repeats, perRow)]
-  }, [lesson, perRow, useTargets])
+  }, [lesson, perRow, useTargets, hasTierTargets, tierKeyStr])
 
   const target = targets[Math.min(targetIndex, targets.length - 1)] ?? ''
 
-  // Only “done” when exact match (forces fixing mistakes)
   const doneExact = typed === target
   const expectedChar = typed.length < target.length ? target[typed.length] : null
 
@@ -93,14 +163,73 @@ export default function PracticePage() {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
-    // ✅ do NOT reset hasStarted or overlayDismissed here
+    startTimeRef.current = null
     focusInput()
+  }
+
+  // returns true if tier changed (caller should stop advancing)
+  function updateTierAfterTargetComplete() {
+    const start = startTimeRef.current
+    if (!start) return false
+
+    const durationMs = Math.max(1, Date.now() - start)
+    const minutes = durationMs / 60000
+
+    const chars = target.length
+    const wpm = (chars / 5) / minutes
+
+    const totalTypedEvents = chars + wrongCount + fixedCount
+    const accuracy = totalTypedEvents > 0 ? chars / totalTypedEvents : 1
+
+    const s = loadStreak()
+
+    const promoteHit = wpm >= rules.promoteIf.wpm && accuracy >= rules.promoteIf.accuracy
+    const demoteHit = wpm <= rules.demoteIf.wpm || accuracy <= rules.demoteIf.accuracy
+
+    let nextStreak = { ...s }
+
+    if (promoteHit) {
+      nextStreak.promote += 1
+      nextStreak.demote = 0
+    } else if (demoteHit) {
+      nextStreak.demote += 1
+      nextStreak.promote = 0
+    } else {
+      nextStreak.promote = 0
+      nextStreak.demote = 0
+    }
+
+    let nextTier = tier
+
+    if (nextStreak.promote >= rules.promoteIf.streak) {
+      nextTier = Math.min(rules.maxTier, tier + 1)
+      nextStreak = { promote: 0, demote: 0 }
+    } else if (nextStreak.demote >= rules.demoteIf.streak) {
+      nextTier = Math.max(rules.minTier, tier - 1)
+      nextStreak = { promote: 0, demote: 0 }
+    }
+
+    saveStreak(nextStreak)
+
+    if (nextTier !== tier) {
+      setTier(nextTier)
+      saveTier(nextTier)
+      setTargetIndex(0)
+      resetTypingForNextTarget()
+      return true
+    }
+
+    return false
   }
 
   function completeAndNextLesson() {
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
+
+    // clear tier streaks for this step when completed (so next time they start fresh)
+    localStorage.removeItem(streakKey)
+    localStorage.removeItem(tierKey())
 
     setTyped('')
     setWrongCount(0)
@@ -116,25 +245,28 @@ export default function PracticePage() {
   }
 
   function advance() {
-    if (useTargets && targetIndex < targets.length - 1) {
+    const tierChanged = updateTierAfterTargetComplete()
+    if (tierChanged) return
+
+    if (targetIndex < targets.length - 1) {
       setTargetIndex((i) => i + 1)
       resetTypingForNextTarget()
       return
     }
+
     completeAndNextLesson()
   }
 
   function onKeyDown(e) {
-    // first interaction detection
     if (
       !hasStarted &&
       (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
     ) {
       setHasStarted(true)
-      setOverlayDismissed(true) // ✅ if they start typing, overlay should never show again this step
+      setOverlayDismissed(true)
+      if (!startTimeRef.current) startTimeRef.current = Date.now()
     }
 
-    // If exact done: Space / ArrowRight advances
     if (doneExact) {
       if (e.key === ' ' || e.key === 'ArrowRight') {
         e.preventDefault()
@@ -143,7 +275,6 @@ export default function PracticePage() {
       return
     }
 
-    // If user already filled the whole target but it's wrong, only allow backspace
     if (typed.length >= target.length && e.key !== 'Backspace') {
       e.preventDefault()
       return
@@ -164,8 +295,7 @@ export default function PracticePage() {
     }
 
     if (e.key === 'Enter') {
-      const expected = expectedChar
-      if (expected !== '\n') setWrongCount((n) => n + 1)
+      if (expectedChar !== '\n') setWrongCount((n) => n + 1)
       setTyped((t) => t + '\n')
       e.preventDefault()
       return
@@ -173,9 +303,9 @@ export default function PracticePage() {
 
     if (e.key.length !== 1) return
 
-    const nextChar = e.key
-    if (expectedChar !== nextChar) setWrongCount((n) => n + 1)
-    setTyped((t) => t + nextChar)
+    if (expectedChar !== e.key) setWrongCount((n) => n + 1)
+
+    setTyped((t) => t + e.key)
     e.preventDefault()
   }
 
@@ -194,20 +324,18 @@ export default function PracticePage() {
             <h1 className="practice-h1">{unit.title}</h1>
 
             <div className="practice-sub">
-              Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>
-              {useTargets && (
-                <>
-                  {' '}
-                  <span style={{ opacity: 0.7 }}>
-                    (Step {targetIndex + 1}/{targets.length})
-                  </span>
-                </>
+              Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>{' '}
+              <span style={{ opacity: 0.7 }}>
+                (Step {targetIndex + 1}/{targets.length})
+              </span>
+              {lesson.targetsByTier && (
+                <span style={{ opacity: 0.7 }}> — Tier {tier}</span>
               )}
             </div>
 
             <div className="practice-rules">
-              Click the box and type <b>exactly</b> what you see (spaces count).
-              Use <b>Backspace</b> to fix.
+              Click the box and type <b>exactly</b> what you see (spaces count). Use{' '}
+              <b>Backspace</b> to fix.
             </div>
 
             {lesson.learnText && (
@@ -219,6 +347,24 @@ export default function PracticePage() {
             <Link to="/lessons" className="practice-back">
               ← Back
             </Link>
+
+            {/* Debug / UX helper: reset tier+streak for current step */}
+            <button
+              type="button"
+              className="practice-reset"
+              onClick={() => clearTierAndStreak()}
+              title="Reset tier and streak for this step"
+              style={{
+                marginLeft: 12,
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.15)',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+            >
+              Reset Tier
+            </button>
           </div>
         </div>
 
@@ -230,11 +376,13 @@ export default function PracticePage() {
                 onMouseDown={() => {
                   setHasStarted(true)
                   setOverlayDismissed(true)
+                  if (!startTimeRef.current) startTimeRef.current = Date.now()
                   focusInput()
                 }}
                 onClick={() => {
                   setHasStarted(true)
                   setOverlayDismissed(true)
+                  if (!startTimeRef.current) startTimeRef.current = Date.now()
                   focusInput()
                 }}
                 role="presentation"
@@ -295,6 +443,10 @@ export default function PracticePage() {
   )
 }
 
+// ------- Below here: keep your existing components unchanged -------
+// If your file already has ChunkGrid/Keyboard definitions, keep them as-is.
+// Included here for completeness if you need a single-file paste.
+
 function ChunkGrid({ target, typed }) {
   const lines = target.split('\n')
   const lineStarts = lines.reduce((acc, line, i) => {
@@ -341,8 +493,7 @@ const KEY_ROWS = [
 ]
 
 function Keyboard({ expected }) {
-  const keyToHighlight =
-    expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
+  const keyToHighlight = expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
 
   return (
     <div className="keyboard">
