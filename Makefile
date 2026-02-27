@@ -14,7 +14,7 @@ backend-install:
 	cd backend && . .venv/bin/activate && python -m pip install -U pip && pip install -r requirements.txt
 
 backend-dev:
-	cd backend && . .venv/bin/activate && set -a && . ../.env.admin && set +a && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+	cd backend && . .venv/bin/activate && set -a && . ../.env && set +a && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 frontend-install:
 	cd frontend && npm install
 
