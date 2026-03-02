@@ -45,6 +45,17 @@ export function markCompleted(progress, unitId, stepId) {
   return next
 }
 
+export function isFinalChallengeCompleted(progress, unitId) {
+  return !!(progress.finalChallenges?.[unitId])
+}
+
+export function markFinalChallengeCompleted(progress, unitId) {
+  return {
+    ...progress,
+    finalChallenges: { ...(progress.finalChallenges || {}), [unitId]: true },
+  }
+}
+
 export function computeLocks(units, progress) {
   // tester override: everything unlocked
   if (getUnlocksOverride()) {

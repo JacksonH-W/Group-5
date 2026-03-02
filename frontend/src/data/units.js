@@ -70,6 +70,14 @@ export const UNITS = [
           },
         },
       ],
+      finalChallenge: {
+        label: 'Final Challenge',
+        language: 'javascript',
+        prompt:
+          'Write a function named greet that takes a parameter called name and returns "Hello " + name. Call greet with the argument "World" and log the result with console.log.',
+        starterCode: '// Write your code here\n',
+        expectedOutput: 'Hello World',
+      },
     },
   
     {
@@ -136,6 +144,14 @@ export const UNITS = [
           },
         },
       ],
+      finalChallenge: {
+        label: 'Final Challenge',
+        language: 'javascript',
+        prompt:
+          'Declare a variable score starting at 0. Add 3 to it, then log your updated score with console.log.',
+        starterCode: '// Write your code here\n',
+        expectedOutput: '3',
+      },
     },
   
     {
@@ -199,6 +215,14 @@ export const UNITS = [
           },
         },
       ],
+      finalChallenge: {
+        label: 'Final Challenge',
+        language: 'javascript',
+        prompt:
+          'Declare a variable score and set it to 15. Write an if/else statement: if score is greater than or equal to 10, log "You win!" — otherwise log "Try again".',
+        starterCode: '// Write your code here\n',
+        expectedOutput: 'You win!',
+      },
     },
   
     {
@@ -251,5 +275,13 @@ export const UNITS = [
           },
         },
       ],
+      finalChallenge: {
+        label: 'Final Challenge',
+        language: 'javascript',
+        prompt:
+          'Declare a variable score starting at 0. Write a for loop that runs 5 times and adds 1 to score each iteration using score = score + 1. On each iteration log score with console.log.',
+        starterCode: '// Write your code here\n',
+        expectedOutput: "1\n2\n3\n4\n5\n"
+      },
     },
   ]

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.auth.controller import router as auth_router
 from app.dashboard.router import router as dashboard_router
-from app.lessons.router import router as lessons_router  
+from app.lessons.router import router as lessons_router
 from app.practice.router import router as practice_router
 
 app = FastAPI(title="Type2Code API")

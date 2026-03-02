@@ -1,0 +1,207 @@
+.challenge-shell {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 2rem 4rem;
+}
+
+.challenge-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+  gap: 1rem;
+}
+
+.challenge-h1 {
+  font-size: 1.9rem;
+  font-weight: 900;
+  margin-bottom: 0.2rem;
+}
+
+.challenge-sub {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+.challenge-back {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.challenge-back:hover {
+  text-decoration: underline;
+}
+
+.challenge-prompt {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.challenge-editor-cm {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+  font-size: 0.95rem;
+}
+
+.challenge-editor-cm:focus-within {
+  border-color: var(--color-primary);
+}
+
+.challenge-editor-cm .cm-editor {
+  min-height: 220px;
+  background: #fafafa;
+  font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.challenge-editor-cm .cm-scroller {
+  min-height: 220px;
+}
+
+.challenge-editor-cm .cm-focused {
+  outline: none;
+}
+
+.challenge-editor-cm .cm-gutters {
+  background: #f0f0f0;
+  border-right: 1px solid var(--color-border);
+  color: #999;
+}
+
+.challenge-run-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.btn-run {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1.4rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-run:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.btn-run:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.challenge-output {
+  background: #1a1a1a;
+  color: #e8e8e8;
+  font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  min-height: 80px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 1.25rem;
+}
+
+.challenge-output-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.challenge-error {
+  color: #ff6b6b;
+}
+
+.challenge-passed {
+  background: #edfbf0;
+  border: 1px solid #a3e6b3;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.challenge-passed-msg {
+  font-weight: 700;
+  color: var(--color-correct);
+  font-size: 1.05rem;
+}
+
+.btn-complete {
+  background: var(--color-correct);
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1.25rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-complete:hover {
+  background: #178a3e;
+}
+
+.challenge-wrong {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  border-radius: 6px;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.challenge-wrong-msg {
+  font-weight: 700;
+  color: #c53030;
+  font-size: 1.05rem;
+}
+
+.challenge-wrong-expected {
+  font-size: 0.9rem;
+  color: #744210;
+}
+
+.challenge-wrong-expected code {
+  font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+  background: #fef3c7;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+.challenge-already-done {
+  font-size: 0.9rem;
+  color: var(--color-correct);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
