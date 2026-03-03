@@ -1,9 +1,11 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true,
-})
+});
+
+export default api;
 
 // GET request to retrieve current user that is logged in
 export async function getMe() {
