@@ -3,7 +3,7 @@
 ## Manuals
 - [User Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/user/run_with_docker.md)  
   - Instructions to run with Docker
-- [Developer Manual]([docs/developer-manual.md](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/developer/run_with_make.md))
+- [Developer Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/developer/run_with_make.md)
   - Instructions to run with Makefile
 
 ## Team Members
