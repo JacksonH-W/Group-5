@@ -8,12 +8,13 @@ from supabase import create_client, Client
 ROOT_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT_DIR / ".env"
 
-# Load .env if present; otherwise rely on actual environment variables (e.g., Docker)
+# Load .env if present; otherwise rely on actual environment variables
 if ENV_FILE.exists():
     load_dotenv(dotenv_path=ENV_FILE)
     print("Loaded .env")
 else:
-    print("No .env found in repo root; using environment variables")
+    load_dotenv()
+    print("No repo-root .env found; using environment variables / local backend env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
@@ -26,7 +27,7 @@ supabase_public: Optional[Client] = None
 if SUPABASE_ANON_KEY:
     supabase_public = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-supabase_public: Optional[Client] = None
+supabase_admin: Optional[Client] = None
 if SUPABASE_SERVICE_ROLE_KEY:
     supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     print("Supabase admin client: enabled")

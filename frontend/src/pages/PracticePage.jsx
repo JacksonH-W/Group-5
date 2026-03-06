@@ -6,6 +6,7 @@ import '../styles/practice.css'
 
 import { UNITS } from '../data/units'
 import { loadProgress, saveProgress, markCompleted } from '../utils/progress'
+import { startPractice, submitPractice } from '../api/practice'
 
 function getPerRow() {
   const w = window.innerWidth
@@ -52,6 +53,79 @@ export default function PracticePage() {
   // Adaptive tier system (persisted per step)
   const [tier, setTier] = useState(1)
   const startTimeRef = useRef(null)
+
+  // =========================
+  // Backend practice tracking
+  // =========================
+  const sessionIdRef = useRef(null)
+  const sessionStartRef = useRef(null)
+
+  // totals across whole lesson (wrongCount/fixedCount reset per target)
+  const totalWrongRef = useRef(0)
+  const totalFixedRef = useRef(0)
+  const totalTargetCharsRef = useRef(0)
+
+  async function ensureBackendSessionStarted() {
+    if (sessionIdRef.current) return
+
+    const backendLessonId = lesson.backendLessonId
+    if (!backendLessonId) {
+      console.warn(
+        'No lesson.backendLessonId set in UNITS for this lesson; backend tracking disabled for this step.'
+      )
+      return
+    }
+
+    try {
+      const data = await startPractice(backendLessonId, 'practice')
+      const sid = data?.session_id ?? data?.id ?? null
+
+      if (!sid) {
+        console.warn('Backend /api/practice/start returned no session_id:', data)
+        return
+      }
+
+      sessionIdRef.current = sid
+      sessionStartRef.current = Date.now()
+    } catch (e) {
+      console.error('Failed to start backend practice session:', e)
+    }
+  }
+
+  async function submitBackendIfPossible() {
+    const sessionId = sessionIdRef.current
+    const startMs = sessionStartRef.current
+
+    if (!sessionId || !startMs) return
+
+    const timeSeconds = (Date.now() - startMs) / 1000
+    const durationSeconds = Math.max(1, Math.round(timeSeconds))
+
+    const chars = Math.max(1, totalTargetCharsRef.current)
+    const minutes = timeSeconds / 60
+    const wpm = (chars / 5) / Math.max(minutes, 0.0001)
+
+    const totalErrors = totalWrongRef.current + totalFixedRef.current
+    const accuracy = chars / (chars + totalErrors)
+
+    try {
+      await submitPractice({
+        session_id: sessionId,
+        wpm,
+        accuracy,
+        error_count: totalErrors,
+        time_seconds: timeSeconds,
+        duration_seconds: durationSeconds,
+        tier, // backend normalizes; sessions.tier is integer
+        details: {
+          unit_id: Number(unitId),
+          step_id: Number(stepId),
+        },
+      })
+    } catch (e) {
+      console.error('Failed to submit backend practice results:', e)
+    }
+  }
 
   // --------- localStorage helpers ----------
   function tierKey() {
@@ -134,6 +208,13 @@ export default function PracticePage() {
     const t = loadTier()
     setTier(t)
 
+    // reset backend refs + totals for this step
+    sessionIdRef.current = null
+    sessionStartRef.current = null
+    totalWrongRef.current = 0
+    totalFixedRef.current = 0
+    totalTargetCharsRef.current = 0
+
     focusInput()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, stepId])
@@ -183,7 +264,8 @@ export default function PracticePage() {
 
     const s = loadStreak()
 
-    const promoteHit = wpm >= rules.promoteIf.wpm && accuracy >= rules.promoteIf.accuracy
+    const promoteHit =
+      wpm >= rules.promoteIf.wpm && accuracy >= rules.promoteIf.accuracy
     const demoteHit = wpm <= rules.demoteIf.wpm || accuracy <= rules.demoteIf.accuracy
 
     let nextStreak = { ...s }
@@ -222,7 +304,10 @@ export default function PracticePage() {
     return false
   }
 
-  function completeAndNextLesson() {
+  async function completeAndNextLesson() {
+    // submit backend stats BEFORE navigation
+    await submitBackendIfPossible()
+
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
@@ -244,7 +329,12 @@ export default function PracticePage() {
     else navigate('/lessons')
   }
 
-  function advance() {
+  async function advance() {
+    // accumulate totals for this target BEFORE tier logic resets counters
+    totalWrongRef.current += wrongCount
+    totalFixedRef.current += fixedCount
+    totalTargetCharsRef.current += target.length
+
     const tierChanged = updateTierAfterTargetComplete()
     if (tierChanged) return
 
@@ -254,7 +344,7 @@ export default function PracticePage() {
       return
     }
 
-    completeAndNextLesson()
+    await completeAndNextLesson()
   }
 
   function onKeyDown(e) {
@@ -265,6 +355,9 @@ export default function PracticePage() {
       setHasStarted(true)
       setOverlayDismissed(true)
       if (!startTimeRef.current) startTimeRef.current = Date.now()
+
+      // backend start on first interaction
+      ensureBackendSessionStarted()
     }
 
     if (doneExact) {
@@ -377,12 +470,20 @@ export default function PracticePage() {
                   setHasStarted(true)
                   setOverlayDismissed(true)
                   if (!startTimeRef.current) startTimeRef.current = Date.now()
+
+                  // backend start on overlay click
+                  ensureBackendSessionStarted()
+
                   focusInput()
                 }}
                 onClick={() => {
                   setHasStarted(true)
                   setOverlayDismissed(true)
                   if (!startTimeRef.current) startTimeRef.current = Date.now()
+
+                  // backend start on overlay click
+                  ensureBackendSessionStarted()
+
                   focusInput()
                 }}
                 role="presentation"
@@ -444,7 +545,6 @@ export default function PracticePage() {
 }
 
 // ------- Below here: keep your existing components unchanged -------
-// If your file already has ChunkGrid/Keyboard definitions, keep them as-is.
 // Included here for completeness if you need a single-file paste.
 
 function ChunkGrid({ target, typed }) {
@@ -493,7 +593,8 @@ const KEY_ROWS = [
 ]
 
 function Keyboard({ expected }) {
-  const keyToHighlight = expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
+  const keyToHighlight =
+    expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
 
   return (
     <div className="keyboard">

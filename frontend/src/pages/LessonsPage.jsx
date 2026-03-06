@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/lessonsGrid.css'
@@ -13,123 +13,212 @@ import {
   setUnlocksOverride,
 } from '../utils/progress'
 
+import { fetchPracticeStats, fetchPracticeSessions } from '../api/practice'
+
+function shortText(text, max = 110) {
+  if (!text) return ''
+  const s = String(text).replace(/\s+/g, ' ').trim()
+  return s.length > max ? s.slice(0, max - 1) + '…' : s
+}
+
+function formatAccuracy(a) {
+  if (a == null) return '—'
+  const n = Number(a)
+  if (Number.isNaN(n)) return '—'
+
+  const pct = n <= 1 ? n * 100 : n
+  return `${pct.toFixed(1)}%`
+}
+
 export default function LessonsPage() {
   const progress = loadProgress()
 
-  // Lazy init: read localStorage one time on mount (no useEffect needed)
   const [locksDisabled, setLocksDisabled] = useState(() => getUnlocksOverride())
+  const locks = useMemo(() => computeLocks(UNITS, progress), [progress])
 
-  const locks = computeLocks(UNITS, progress)
+  const [stats, setStats] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  function toggleUnlocks() {
+  useEffect(() => {
+    async function loadBackendData() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const [statsRes, sessionsRes] = await Promise.all([
+          fetchPracticeStats(50),
+          fetchPracticeSessions(10),
+        ])
+
+        setStats(statsRes || null)
+        setSessions(Array.isArray(sessionsRes?.sessions) ? sessionsRes.sessions : [])
+      } catch (err) {
+        console.error('Failed to load practice data:', err)
+        setError('Failed to load practice data.')
+        setStats(null)
+        setSessions([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadBackendData()
+  }, [])
+
+  function toggleLocks() {
     const next = !locksDisabled
-    setUnlocksOverride(next)
     setLocksDisabled(next)
+    setUnlocksOverride(next)
   }
 
   return (
-    <div className="app-shell">
+    <>
       <NavBar />
 
-      <main className="lessons-shell">
+      <div className="lessons-shell">
         <div className="lessons-topline">
-          <div className="lessons-metrics">
-            <span>Progress (local)</span>
-          </div>
-
-          <button className="unlock-toggle" onClick={toggleUnlocks}>
-            Unlocks: {locksDisabled ? 'OFF' : 'ON'}
+          <button onClick={toggleLocks} className="unlock-toggle">
+            {locksDisabled ? 'Enable Locks' : 'Disable Locks (Dev)'}
           </button>
         </div>
 
         <h1 className="lessons-title">Lessons</h1>
 
-        {UNITS.map((unit) => {
-          const allLessonsDone = unit.lessons.every((l) =>
-            isCompleted(progress, unit.id, l.stepId)
-          )
-          const challengeLocked = locksDisabled ? false : !allLessonsDone
-          const challengeDone = isFinalChallengeCompleted(progress, unit.id)
+        <div className="lessons-metrics" style={{ marginBottom: '1.25rem' }}>
+          {loading && <div className="tile-muted">Loading stats…</div>}
 
-          return (
-            <section key={unit.id} className="unit-section">
-              <div className="unit-header">
-                <h2 className="unit-title">{unit.title}</h2>
-                <p className="unit-subtitle">{unit.subtitle}</p>
+          {error && <div style={{ color: 'red' }}>{error}</div>}
+
+          {!loading && !error && stats && (
+            <>
+              <div className="tile-muted">Total Sessions: {stats.total_sessions ?? 0}</div>
+
+              <div className="tile-muted">
+                Avg WPM: {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
               </div>
 
+              <div className="tile-muted">
+                Best WPM: {stats.best_wpm == null ? '—' : Number(stats.best_wpm).toFixed(1)}
+              </div>
+
+              <div className="tile-muted">
+                Avg Accuracy: {formatAccuracy(stats.avg_accuracy)}
+              </div>
+
+              <div className="tile-muted">
+                Best Accuracy: {formatAccuracy(stats.best_accuracy)}
+              </div>
+
+              <div className="tile-muted">
+                Total Time: {stats.total_time_seconds ?? 0}s
+              </div>
+            </>
+          )}
+
+          {!loading && !error && !stats && (
+            <div className="tile-muted">No stats yet.</div>
+          )}
+        </div>
+
+        {UNITS.map((unit) => {
+          const finalChallengeLocked =
+            !locksDisabled &&
+            unit.lessons.some((lesson) => !isCompleted(progress, unit.id, lesson.stepId))
+
+          const finalChallengeCompleted = isFinalChallengeCompleted(progress, unit.id)
+          const finalChallengeFocus = shortText(unit.finalChallenge?.prompt || '', 110)
+
+          return (
+            <section key={unit.id} style={{ marginBottom: '2rem' }}>
+              <h2 style={{ margin: '0 0 0.75rem', fontWeight: 900 }}>
+                {unit.title}
+              </h2>
+
               <div className="lessons-grid">
-                {unit.lessons.map((l, idx) => {
-                  const lockedByProgress = locks?.[unit.id]?.[l.stepId] ?? false
-                  const locked = locksDisabled ? false : lockedByProgress
-                  const done = isCompleted(progress, unit.id, l.stepId)
+                {unit.lessons.map((lesson) => {
+                  const locked = !locksDisabled && locks?.[unit.id]?.[lesson.stepId]
+                  const completed = isCompleted(progress, unit.id, lesson.stepId)
 
-                  const tile = (
-                    <div className={`tile tile-mini ${locked ? 'locked' : ''}`}>
-                      <div className="tile-num">{idx + 1}</div>
+                  const label = lesson.label || `Lesson ${lesson.stepId}`
+                  const focus = shortText(lesson.learnText || lesson.focus || '')
 
-                      {locked && <div className="tile-lock">Locked</div>}
-                      {done && !locked && <div className="tile-lock">Done</div>}
+                  const tileInner = (
+                    <div className={`tile ${locked ? 'locked' : ''}`}>
+                      <div className="tile-num">{lesson.stepId}</div>
+                      <div className="tile-lock">
+                        {locked ? '🔒' : completed ? '✓' : ''}
+                      </div>
 
                       <div className="tile-body">
-                        <div className="tile-name">{l.label}</div>
-                        <div className="tile-focus">
-                          {done ? 'Completed' : 'Mini lesson'}
-                        </div>
+                        <div className="tile-name">{label}</div>
+                        <div className="tile-focus">{focus}</div>
                       </div>
 
                       <div className="tile-footer">
-                        <div className="tile-muted">
-                          {locked ? 'Locked' : 'Click to begin'}
-                        </div>
+                        {locked ? (
+                          <span className="tile-muted">Locked</span>
+                        ) : completed ? (
+                          <span>Continue</span>
+                        ) : (
+                          <span>Start</span>
+                        )}
                       </div>
                     </div>
                   )
 
-                  if (locked) return <div key={l.stepId}>{tile}</div>
+                  if (locked) {
+                    return <div key={lesson.stepId}>{tileInner}</div>
+                  }
 
                   return (
                     <Link
-                      key={l.stepId}
-                      to={`/practice/${unit.id}/${l.stepId}`}
+                      key={lesson.stepId}
                       className="tile-link"
+                      to={`/practice/${unit.id}/${lesson.stepId}`}
                     >
-                      {tile}
+                      {tileInner}
                     </Link>
                   )
                 })}
 
                 {unit.finalChallenge && (() => {
-                  const fc = unit.finalChallenge
                   const challengeTile = (
-                    <div className={`tile tile-mini ${challengeLocked ? 'locked' : ''}`}>
-                      <div className="tile-num">{unit.lessons.length + 1}</div>
-
-                      {challengeLocked && <div className="tile-lock">Locked</div>}
-                      {challengeDone && !challengeLocked && <div className="tile-lock">Done</div>}
+                    <div className={`tile ${finalChallengeLocked ? 'locked' : ''}`}>
+                      <div className="tile-num">★</div>
+                      <div className="tile-lock">
+                        {finalChallengeLocked ? '🔒' : finalChallengeCompleted ? '✓' : ''}
+                      </div>
 
                       <div className="tile-body">
-                        <div className="tile-name">{fc.label}</div>
-                        <div className="tile-focus">
-                          {challengeDone ? 'Completed' : 'Run real code'}
+                        <div className="tile-name">
+                          {unit.finalChallenge.label || 'Final Challenge'}
                         </div>
+                        <div className="tile-focus">{finalChallengeFocus}</div>
                       </div>
 
                       <div className="tile-footer">
-                        <div className="tile-muted">
-                          {challengeLocked ? 'Locked' : 'Click to begin'}
-                        </div>
+                        {finalChallengeLocked ? (
+                          <span className="tile-muted">Finish all lessons</span>
+                        ) : finalChallengeCompleted ? (
+                          <span>Completed</span>
+                        ) : (
+                          <span>Start Challenge</span>
+                        )}
                       </div>
                     </div>
                   )
 
-                  if (challengeLocked) return <div key="final">{challengeTile}</div>
+                  if (finalChallengeLocked) {
+                    return <div key={`challenge-${unit.id}`}>{challengeTile}</div>
+                  }
 
                   return (
                     <Link
-                      key="final"
-                      to={`/challenge/${unit.id}`}
+                      key={`challenge-${unit.id}`}
                       className="tile-link"
+                      to={`/challenge/${unit.id}`}
                     >
                       {challengeTile}
                     </Link>
@@ -139,7 +228,29 @@ export default function LessonsPage() {
             </section>
           )
         })}
-      </main>
-    </div>
+
+        <section style={{ marginTop: '2rem' }}>
+          <h2 style={{ margin: '0 0 0.75rem', fontWeight: 900 }}>
+            Recent Sessions
+          </h2>
+
+          {!loading && sessions.length === 0 && (
+            <div className="tile-muted">No sessions yet.</div>
+          )}
+
+          {sessions.slice(0, 10).map((s) => (
+            <div
+              key={s.session_id ?? s.id}
+              className="tile-muted"
+              style={{ marginBottom: '0.4rem' }}
+            >
+              {s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'} · WPM:{' '}
+              {s.wpm ?? '—'} · Acc: {formatAccuracy(s.accuracy)} · Time:{' '}
+              {s.time_seconds ?? 0}s
+            </div>
+          ))}
+        </section>
+      </div>
+    </>
   )
 }
