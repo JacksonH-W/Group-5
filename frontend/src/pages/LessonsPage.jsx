@@ -185,7 +185,6 @@ export default function LessonsPage() {
                   isCompleted(progress, unit.id, lesson.stepId)
                 ).length
 
-                const totalCount = unit.lessons.length
                 const unitComplete = isUnitCompleted(unit, progress)
 
                 const categoryLink = unitLocked
