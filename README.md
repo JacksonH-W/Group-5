@@ -1,4 +1,8 @@
 # Group-5: Type2Code
+[Type2Code](https://group-5-pink.vercel.app) is a web application that aims to help programmers transition from drag-and-drop platforms to real text-based programming. The platform uses incremental learning and repetition in order to build confidence in manually typing code. Type2Code helps incoming programmers develop the skills needed to work on bigger projects. The application is available at https://group-5-pink.vercel.app.
+
+## Live Demo
+https://group-5-pink.vercel.app
 
 ## Manuals
 - [User Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/user/run_with_docker.md)  

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/lessonsGrid.css'
@@ -6,140 +6,424 @@ import '../styles/lessonsGrid.css'
 import { UNITS } from '../data/units'
 import {
   loadProgress,
-  computeLocks,
   isCompleted,
   isFinalChallengeCompleted,
   getUnlocksOverride,
   setUnlocksOverride,
+  getNextIncompleteLesson,
 } from '../utils/progress'
+
+import { fetchPracticeStats, fetchRecentSessions } from '../api/practice'
+
+function shortText(text, max = 110) {
+  if (!text) return ''
+  const s = String(text).replace(/\s+/g, ' ').trim()
+  return s.length > max ? s.slice(0, max - 1) + '…' : s
+}
+
+function formatAccuracy(a) {
+  if (a == null) return '—'
+  const n = Number(a)
+  if (Number.isNaN(n)) return '—'
+  const pct = n <= 1 ? n * 100 : n
+  return `${pct.toFixed(1)}%`
+}
+
+function buildLessonMap() {
+  const map = {}
+
+  UNITS.forEach((unit) => {
+    unit.lessons.forEach((lesson) => {
+      if (lesson.backendLessonId) {
+        map[lesson.backendLessonId] = {
+          label: lesson.label || `Lesson ${lesson.stepId}`,
+          unit: unit.title,
+          stepId: lesson.stepId,
+          unitId: unit.id,
+        }
+      }
+    })
+  })
+
+  return map
+}
+
+const LESSON_MAP = buildLessonMap()
+
+function isUnitCompleted(unit, progress) {
+  return unit.lessons.every((lesson) =>
+    isCompleted(progress, unit.id, lesson.stepId)
+  )
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function retryOnce(fn, label, fallbackValue) {
+  try {
+    return await fn()
+  } catch (err) {
+    console.warn(`${label} failed, retrying once...`, err)
+    await wait(400)
+
+    try {
+      return await fn()
+    } catch (err2) {
+      console.error(`${label} failed again:`, err2)
+      return fallbackValue
+    }
+  }
+}
 
 export default function LessonsPage() {
   const progress = loadProgress()
 
-  // Lazy init: read localStorage one time on mount (no useEffect needed)
-  const [locksDisabled, setLocksDisabled] = useState(() => getUnlocksOverride())
+  const [locksDisabled, setLocksDisabled] = useState(() =>
+    getUnlocksOverride()
+  )
 
-  const locks = computeLocks(UNITS, progress)
+  const [stats, setStats] = useState(null)
+  const [sessions, setSessions] = useState([])
 
-  function toggleUnlocks() {
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+
+  const [statsError, setStatsError] = useState('')
+  const [sessionsError, setSessionsError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadBackendData() {
+      setStatsLoading(true)
+      setSessionsLoading(true)
+      setStatsError('')
+      setSessionsError('')
+
+      const [statsData, sessionsData] = await Promise.all([
+        retryOnce(() => fetchPracticeStats(200), 'stats', null),
+        retryOnce(() => fetchRecentSessions(10), 'recent sessions', { sessions: [] }),
+      ])
+
+      if (cancelled) return
+
+      if (statsData == null) {
+        setStats(null)
+        setStatsError('Failed to load stats.')
+      } else {
+        setStats(statsData)
+      }
+
+      const normalizedSessions = Array.isArray(sessionsData?.sessions)
+        ? sessionsData.sessions
+        : Array.isArray(sessionsData)
+        ? sessionsData
+        : []
+
+      if (sessionsData == null) {
+        setSessions([])
+        setSessionsError('Failed to load recent sessions.')
+      } else {
+        setSessions(normalizedSessions)
+      }
+
+      setStatsLoading(false)
+      setSessionsLoading(false)
+    }
+
+    loadBackendData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function toggleLocks() {
     const next = !locksDisabled
-    setUnlocksOverride(next)
     setLocksDisabled(next)
+    setUnlocksOverride(next)
   }
 
+  const showGlobalError = statsError && sessionsError
+  const isLoading = statsLoading || sessionsLoading
+
   return (
-    <div className="app-shell">
+    <>
       <NavBar />
 
-      <main className="lessons-shell">
-        <div className="lessons-topline">
-          <div className="lessons-metrics">
-            <span>Progress (local)</span>
+      <div className="lessons-shell">
+        <div className="lessons-topbar">
+          <div>
+            <div className="lessons-kicker">TYPE2CODE // LEARNING DASHBOARD</div>
+            <h1 className="lessons-title">Lessons</h1>
+            <p className="lessons-subtitle">
+              Pick up where you left off, review a category, or jump into a final challenge.
+            </p>
           </div>
 
-          <button className="unlock-toggle" onClick={toggleUnlocks}>
-            Unlocks: {locksDisabled ? 'OFF' : 'ON'}
+          <button onClick={toggleLocks} className="unlock-toggle">
+            {locksDisabled ? 'Enable Locks' : 'Disable Locks (Dev)'}
           </button>
         </div>
 
-        <h1 className="lessons-title">Lessons</h1>
+        <div className="lessons-layout">
+          <section className="lessons-main">
+            <div className="category-row">
+              {UNITS.map((unit, unitIndex) => {
+                const prevUnit = UNITS[unitIndex - 1]
 
-        {UNITS.map((unit) => {
-          const allLessonsDone = unit.lessons.every((l) =>
-            isCompleted(progress, unit.id, l.stepId)
-          )
-          const challengeLocked = locksDisabled ? false : !allLessonsDone
-          const challengeDone = isFinalChallengeCompleted(progress, unit.id)
+                const unitLocked =
+                  !locksDisabled &&
+                  unitIndex > 0 &&
+                  prevUnit &&
+                  !isUnitCompleted(prevUnit, progress)
 
-          return (
-            <section key={unit.id} className="unit-section">
-              <div className="unit-header">
-                <h2 className="unit-title">{unit.title}</h2>
-                <p className="unit-subtitle">{unit.subtitle}</p>
+                const nextLesson = getNextIncompleteLesson(unit, progress)
+
+                const completedCount = unit.lessons.filter((lesson) =>
+                  isCompleted(progress, unit.id, lesson.stepId)
+                ).length
+
+                const unitComplete = isUnitCompleted(unit, progress)
+
+                const categoryLink = unitLocked
+                  ? null
+                  : nextLesson
+                  ? `/practice/${unit.id}/${nextLesson.stepId}`
+                  : `/challenge/${unit.id}`
+
+                const categoryFocus = nextLesson
+                  ? shortText(nextLesson.learnText || nextLesson.label || unit.title, 120)
+                  : `All ${unit.title} lessons completed.`
+
+                const categoryTile = (
+                  <div className={`lesson-card tall ${unitLocked ? 'locked' : ''}`}>
+                    <div className="lesson-card-top">
+                      <div className="lesson-badge">{unit.id}</div>
+                      <div className="lesson-status">
+                        {unitLocked
+                          ? 'Locked'
+                          : unitComplete
+                          ? 'Completed'
+                          : completedCount > 0
+                          ? 'In Progress'
+                          : 'Start'}
+                      </div>
+                    </div>
+
+                    <div className="lesson-card-body">
+                      <h2 className="lesson-card-title">{unit.title}</h2>
+                      <p className="lesson-card-text">{categoryFocus}</p>
+                    </div>
+
+                    <div className="lesson-card-footer">
+                      <div className="lesson-action">
+                        {unitLocked
+                          ? 'Locked'
+                          : unitComplete
+                          ? 'Review / Challenge'
+                          : completedCount > 0
+                          ? 'Continue'
+                          : 'Start'}
+                      </div>
+                    </div>
+                  </div>
+                )
+
+                return unitLocked ? (
+                  <div key={unit.id}>{categoryTile}</div>
+                ) : (
+                  <Link key={unit.id} className="tile-link" to={categoryLink}>
+                    {categoryTile}
+                  </Link>
+                )
+              })}
+            </div>
+
+            <section className="challenge-section">
+              <div className="challenge-header">
+                <h2 className="challenge-title">Final Challenges</h2>
+                <p className="challenge-subtitle">
+                  Finish a category, then test yourself with a full mini-project.
+                </p>
               </div>
 
-              <div className="lessons-grid">
-                {unit.lessons.map((l, idx) => {
-                  const lockedByProgress = locks?.[unit.id]?.[l.stepId] ?? false
-                  const locked = locksDisabled ? false : lockedByProgress
-                  const done = isCompleted(progress, unit.id, l.stepId)
+              <div className="challenge-row">
+                {UNITS.map((unit, unitIndex) => {
+                  const prevUnit = UNITS[unitIndex - 1]
 
-                  const tile = (
-                    <div className={`tile tile-mini ${locked ? 'locked' : ''}`}>
-                      <div className="tile-num">{idx + 1}</div>
+                  const unitLocked =
+                    !locksDisabled &&
+                    unitIndex > 0 &&
+                    prevUnit &&
+                    !isUnitCompleted(prevUnit, progress)
 
-                      {locked && <div className="tile-lock">Locked</div>}
-                      {done && !locked && <div className="tile-lock">Done</div>}
+                  const unitComplete = isUnitCompleted(unit, progress)
+                  const finalChallengeLocked = unitLocked || (!locksDisabled && !unitComplete)
+                  const finalChallengeCompleted = isFinalChallengeCompleted(progress, unit.id)
 
-                      <div className="tile-body">
-                        <div className="tile-name">{l.label}</div>
-                        <div className="tile-focus">
-                          {done ? 'Completed' : 'Mini lesson'}
-                        </div>
-                      </div>
+                  if (!unit.finalChallenge) return null
 
-                      <div className="tile-footer">
-                        <div className="tile-muted">
-                          {locked ? 'Locked' : 'Click to begin'}
-                        </div>
-                      </div>
-                    </div>
+                  const finalChallengeFocus = shortText(
+                    unit.finalChallenge?.prompt || '',
+                    95
                   )
 
-                  if (locked) return <div key={l.stepId}>{tile}</div>
-
-                  return (
-                    <Link
-                      key={l.stepId}
-                      to={`/practice/${unit.id}/${l.stepId}`}
-                      className="tile-link"
-                    >
-                      {tile}
-                    </Link>
-                  )
-                })}
-
-                {unit.finalChallenge && (() => {
-                  const fc = unit.finalChallenge
                   const challengeTile = (
-                    <div className={`tile tile-mini ${challengeLocked ? 'locked' : ''}`}>
-                      <div className="tile-num">{unit.lessons.length + 1}</div>
-
-                      {challengeLocked && <div className="tile-lock">Locked</div>}
-                      {challengeDone && !challengeLocked && <div className="tile-lock">Done</div>}
-
-                      <div className="tile-body">
-                        <div className="tile-name">{fc.label}</div>
-                        <div className="tile-focus">
-                          {challengeDone ? 'Completed' : 'Run real code'}
+                    <div
+                      className={`lesson-card challenge ${finalChallengeLocked ? 'locked' : ''}`}
+                    >
+                      <div className="lesson-card-top">
+                        <div className="lesson-badge star">★</div>
+                        <div className="lesson-status">
+                          {finalChallengeLocked
+                            ? 'Locked'
+                            : finalChallengeCompleted
+                            ? 'Completed'
+                            : 'Ready'}
                         </div>
                       </div>
 
-                      <div className="tile-footer">
-                        <div className="tile-muted">
-                          {challengeLocked ? 'Locked' : 'Click to begin'}
+                      <div className="lesson-card-body">
+                        <h3 className="lesson-card-title">
+                          {unit.finalChallenge?.label || 'Final Challenge'}
+                        </h3>
+                        <div className="lesson-card-unit">{unit.title}</div>
+                        <p className="lesson-card-text">{finalChallengeFocus}</p>
+                      </div>
+
+                      <div className="lesson-card-footer">
+                        <div className="lesson-action">
+                          {finalChallengeLocked
+                            ? 'Finish category first'
+                            : finalChallengeCompleted
+                            ? 'Open Again'
+                            : 'Start Challenge'}
                         </div>
                       </div>
                     </div>
                   )
 
-                  if (challengeLocked) return <div key="final">{challengeTile}</div>
-
-                  return (
+                  return finalChallengeLocked ? (
+                    <div key={`challenge-${unit.id}`}>{challengeTile}</div>
+                  ) : (
                     <Link
-                      key="final"
-                      to={`/challenge/${unit.id}`}
+                      key={`challenge-${unit.id}`}
                       className="tile-link"
+                      to={`/challenge/${unit.id}`}
                     >
                       {challengeTile}
                     </Link>
                   )
-                })()}
+                })}
               </div>
             </section>
-          )
-        })}
-      </main>
-    </div>
+          </section>
+
+          <aside className="stats-panel">
+            <div className="stats-card">
+              <h2 className="stats-title">Practice Stats</h2>
+
+              {isLoading && <div className="tile-muted">Loading stats…</div>}
+
+              {!isLoading && showGlobalError && (
+                <div className="stats-error">Practice data is temporarily unavailable.</div>
+              )}
+
+              {!statsLoading && stats && (
+                <div className="stats-list">
+                  <div className="stat-row">
+                    <span>Total Sessions</span>
+                    <strong>{stats.total_sessions ?? 0}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Avg WPM</span>
+                    <strong>
+                      {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Best WPM</span>
+                    <strong>
+                      {stats.best_wpm == null ? '—' : Number(stats.best_wpm).toFixed(1)}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Avg Accuracy</span>
+                    <strong>{formatAccuracy(stats.avg_accuracy)}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Best Accuracy</span>
+                    <strong>{formatAccuracy(stats.best_accuracy)}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Total Time</span>
+                    <strong>{stats.total_time_seconds ?? 0}s</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Last 30 Days</span>
+                    <strong>{stats.last_30_days_time_seconds ?? 0}s</strong>
+                  </div>
+                  <div className="stat-row stat-row-stack">
+                    <span>Most Practiced</span>
+                    <strong>
+                      {stats.most_practiced_lesson_id
+                        ? LESSON_MAP[stats.most_practiced_lesson_id]?.label ?? 'Lesson'
+                        : '—'}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              {!statsLoading && !stats && !statsError && (
+                <div className="tile-muted">No stats yet.</div>
+              )}
+            </div>
+
+            <div className="stats-card">
+              <h3 className="stats-title small">Recent Activity</h3>
+
+              {sessionsLoading && <div className="tile-muted">Loading recent sessions…</div>}
+
+              {!sessionsLoading && sessionsError && (
+                <div className="tile-muted">Recent sessions could not be loaded.</div>
+              )}
+
+              {!sessionsLoading && !sessionsError && sessions.length === 0 && (
+                <div className="tile-muted">No recent sessions yet.</div>
+              )}
+
+              {!sessionsLoading && !sessionsError && sessions.length > 0 && (
+                <div className="recent-list">
+                  {sessions.slice(0, 5).map((session, idx) => {
+                    const lessonMeta = session.lesson_id
+                      ? LESSON_MAP[session.lesson_id]
+                      : null
+
+                    return (
+                      <div className="recent-item" key={session.id || idx}>
+                        <div className="recent-top">
+                          <strong>{lessonMeta?.label || 'Practice Session'}</strong>
+                          <span>{lessonMeta?.unit || 'Lesson'}</span>
+                        </div>
+
+                        <div className="recent-meta">
+                          <span>
+                            WPM:{' '}
+                            {session.wpm == null ? '—' : Number(session.wpm).toFixed(1)}
+                          </span>
+                          <span>Accuracy: {formatAccuracy(session.accuracy)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      </div>
+    </>
   )
 }

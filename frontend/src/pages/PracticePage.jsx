@@ -1,11 +1,16 @@
-// frontend/src/pages/PracticePage.jsx
 import { useMemo, useRef, useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/practice.css'
 
 import { UNITS } from '../data/units'
-import { loadProgress, saveProgress, markCompleted } from '../utils/progress'
+import {
+  loadProgress,
+  saveProgress,
+  markCompleted,
+  saveLastPracticeRoute,
+} from '../utils/progress'
+import { startPractice, submitPractice } from '../api/practice'
 
 function getPerRow() {
   const w = window.innerWidth
@@ -24,10 +29,417 @@ function buildGrid(chunk, repeats, perRow) {
   return rows.join('\n')
 }
 
+function normalizePromptText(value) {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+}
+
+function isExactRenderedMatch(a, b) {
+  const left = normalizePromptText(a)
+  const right = normalizePromptText(b)
+
+  if (left.length !== right.length) return false
+
+  for (let i = 0; i < right.length; i += 1) {
+    if (left[i] !== right[i]) return false
+  }
+
+  return true
+}
+
+function flattenLessonTargets(lesson, perRow) {
+  if (
+    lesson?.targetsByTier &&
+    typeof lesson.targetsByTier === 'object' &&
+    !Array.isArray(lesson.targetsByTier)
+  ) {
+    const sortedTierKeys = Object.keys(lesson.targetsByTier).sort(
+      (a, b) => Number(a) - Number(b)
+    )
+
+    const flattened = sortedTierKeys.flatMap((tierKey) => {
+      const tierTargets = Array.isArray(lesson.targetsByTier[tierKey])
+        ? lesson.targetsByTier[tierKey]
+        : []
+
+      return tierTargets
+        .map((entry) => {
+          if (typeof entry === 'string') return normalizePromptText(entry)
+          if (entry && typeof entry.text === 'string') {
+            return normalizePromptText(entry.text)
+          }
+          return ''
+        })
+        .filter(Boolean)
+    })
+
+    if (flattened.length > 0) return flattened
+  }
+
+  if (Array.isArray(lesson?.targets) && lesson.targets.length > 0) {
+    return lesson.targets
+      .map((entry) => {
+        if (typeof entry === 'string') return normalizePromptText(entry)
+        if (entry && typeof entry.text === 'string') {
+          return normalizePromptText(entry.text)
+        }
+        return ''
+      })
+      .filter(Boolean)
+  }
+
+  if (lesson?.chunk && lesson?.repeats) {
+    return [normalizePromptText(buildGrid(lesson.chunk, lesson.repeats, perRow))]
+  }
+
+  return ['']
+}
+
+function buildExecutableSource(prompts, promptIndex) {
+  return prompts.slice(0, promptIndex + 1).join('\n')
+}
+
+function looksRunnable(code) {
+  const text = String(code ?? '').trim()
+  if (!text) return false
+
+  let braceBalance = 0
+  let parenBalance = 0
+  let quote = null
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    const prev = text[i - 1]
+
+    if (quote) {
+      if (ch === quote && prev !== '\\') quote = null
+      continue
+    }
+
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch
+      continue
+    }
+
+    if (ch === '{') braceBalance += 1
+    if (ch === '}') braceBalance -= 1
+    if (ch === '(') parenBalance += 1
+    if (ch === ')') parenBalance -= 1
+  }
+
+  if (quote) return false
+  if (braceBalance !== 0) return false
+  if (parenBalance !== 0) return false
+
+  const trimmed = text.trim()
+
+  if (trimmed.endsWith('{')) return false
+  if (trimmed.endsWith('else')) return false
+
+  return true
+}
+
+function friendlyConsoleError(message) {
+  const msg = String(message ?? '')
+
+  if (
+    msg.includes('Unexpected end of input') ||
+    msg.includes('Unexpected token') ||
+    msg.includes('missing ) after argument list') ||
+    msg.includes('Unexpected identifier')
+  ) {
+    return 'Code is not complete enough to run yet.'
+  }
+
+  if (msg.includes('is not defined')) {
+    return 'Waiting for the full code snippet before this can run.'
+  }
+
+  return msg || 'Code could not run yet.'
+}
+
+function runLessonCode(source) {
+    const code = String(source ?? '').trim()
+  
+    if (!code) {
+      return {
+        status: 'idle',
+        lines: ['No code to run yet.'],
+      }
+    }
+  
+    if (!looksRunnable(code)) {
+      const previewLines = code.split('\n').slice(-6)
+      return {
+        status: 'building',
+        lines: ['Building snippet...', ...previewLines],
+      }
+    }
+  
+    const definedFunctions = new Set()
+    const functionDefRegex = /function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g
+    let defMatch
+  
+    while ((defMatch = functionDefRegex.exec(code)) !== null) {
+      definedFunctions.add(defMatch[1])
+    }
+  
+    const lines = code.split('\n').map((line) => line.trim()).filter(Boolean)
+  
+    const calledFunctions = []
+    const callRegex = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*\(.*\);?$/
+  
+    for (const line of lines) {
+      if (
+        line.startsWith('function ') ||
+        line.startsWith('if ') ||
+        line.startsWith('for ') ||
+        line.startsWith('while ') ||
+        line.startsWith('switch ') ||
+        line.startsWith('return ') ||
+        line.startsWith('const ') ||
+        line.startsWith('let ') ||
+        line.startsWith('var ') ||
+        line.startsWith('console.')
+      ) {
+        continue
+      }
+  
+      const match = line.match(callRegex)
+      if (match) {
+        calledFunctions.push(match[1])
+      }
+    }
+  
+    const missingFunctions = calledFunctions.filter(
+      (name) => !definedFunctions.has(name)
+    )
+  
+    if (missingFunctions.length > 0) {
+      const previewLines = code.split('\n').slice(-6)
+      return {
+        status: 'building',
+        lines: [
+          'This lesson is practicing function calls.',
+          `Waiting for function definition: ${missingFunctions[0]}()`,
+          ...previewLines,
+        ],
+      }
+    }
+  
+    const logs = []
+  
+    const consoleProxy = {
+      log: (...args) => {
+        logs.push(
+          args
+            .map((arg) => {
+              if (typeof arg === 'string') return arg
+              try {
+                return JSON.stringify(arg)
+              } catch {
+                return String(arg)
+              }
+            })
+            .join(' ')
+        )
+      },
+    }
+  
+    try {
+      const runner = new Function(
+        'console',
+        `
+  "use strict";
+  ${code}
+  `
+      )
+  
+      runner(consoleProxy)
+  
+      return {
+        status: 'success',
+        lines:
+          logs.length > 0
+            ? ['Code executed successfully.', ...logs]
+            : ['Code executed successfully.', 'No console output.'],
+      }
+    } catch (err) {
+      return {
+        status: 'error',
+        lines: ['Code could not run yet.', friendlyConsoleError(err?.message)],
+      }
+    }
+  }
+
+function explainCode(line) {
+  const text = String(line ?? '').trim()
+  if (!text) return 'Continue typing the code exactly as shown.'
+
+  const functionMatch = text.match(/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*?)\)\s*\{$/)
+  if (functionMatch) {
+    const [, name, paramsRaw] = functionMatch
+    const params = paramsRaw.trim()
+
+    if (!params) {
+      return `Starts a function named ${name}. This creates a reusable block of code that can be called later.`
+    }
+
+    return `Starts a function named ${name} that takes ${params} as input. The code inside this function can use that input when it runs.`
+  }
+
+  if (text === '}') {
+    return 'Closes the current code block, such as a function, loop, or if statement.'
+  }
+
+  const returnStringMatch = text.match(/^return\s+["'`](.*)["'`];?$/)
+  if (returnStringMatch) {
+    return `Returns the text "${returnStringMatch[1]}" from the function.`
+  }
+
+  const returnNumberMatch = text.match(/^return\s+(\d+);?$/)
+  if (returnNumberMatch) {
+    return `Returns the number ${returnNumberMatch[1]} from the function.`
+  }
+
+  if (text.startsWith('return ')) {
+    return 'Returns a value from the function back to the place where the function was called.'
+  }
+
+  const constMatch = text.match(/^const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (constMatch) {
+    const [, name, value] = constMatch
+    return `Creates a constant named ${name} and gives it the value ${value}. Constants are meant to stay the same.`
+  }
+
+  const letMatch = text.match(/^let\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (letMatch) {
+    const [, name, value] = letMatch
+    return `Creates a variable named ${name} and stores ${value} in it. This variable can be changed later.`
+  }
+
+  const updateMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*([\+\-])\s*(.+);$/)
+  if (updateMatch) {
+    const [, name, op, value] = updateMatch
+    if (op === '+') {
+      return `Updates ${name} by adding ${value} to its current value.`
+    }
+    return `Updates ${name} by subtracting ${value} from its current value.`
+  }
+
+  const assignMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (assignMatch) {
+    const [, name, value] = assignMatch
+    return `Changes the variable ${name} so it now stores ${value}.`
+  }
+
+  const consoleMatch = text.match(/^console\.log\((.*)\);$/)
+  if (consoleMatch) {
+    return `Prints ${consoleMatch[1]} to the console so the user can see the result.`
+  }
+
+  const ifMatch = text.match(/^if\s*\((.*)\)\s*\{$/)
+  if (ifMatch) {
+    return `Starts an if statement. The code inside will only run if ${ifMatch[1]} is true.`
+  }
+
+  const elseMatch = text.match(/^}\s*else\s*{$|^else\s*{$/)
+  if (elseMatch) {
+    return 'Starts the else block. This code runs when the earlier if condition is false.'
+  }
+
+  const forMatch = text.match(/^for\s*\((.*?);(.*?);(.*?)\)\s*\{$/)
+  if (forMatch) {
+    const [, start, condition, update] = forMatch
+    return `Starts a loop. It begins with ${start.trim()}, keeps going while ${condition.trim()} is true, and updates with ${update.trim()} after each repetition.`
+  }
+
+  const callMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\((.*)\);$/)
+  if (callMatch) {
+    const [, name, args] = callMatch
+    if (args.trim()) {
+      return `Calls the function ${name} and passes in ${args}.`
+    }
+    return `Calls the function ${name} so it can run its code.`
+  }
+
+  return 'This line is part of the program you are building. Type it exactly to continue.'
+}
+
+function previewExecution(line) {
+  const text = String(line ?? '').trim()
+  if (!text) return 'Run the code to see what happens.'
+
+  const functionMatch = text.match(/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*?)\)\s*\{$/)
+  if (functionMatch) {
+    const [, name] = functionMatch
+    return `Preview: a function named ${name} is being created. It will not do anything until the function is called.`
+  }
+
+  const returnStringMatch = text.match(/^return\s+["'`](.*)["'`];?$/)
+  if (returnStringMatch) {
+    return `Preview: when this function runs, it will send back "${returnStringMatch[1]}".`
+  }
+
+  const returnNumberMatch = text.match(/^return\s+(\d+);?$/)
+  if (returnNumberMatch) {
+    return `Preview: when this function runs, it will send back ${returnNumberMatch[1]}.`
+  }
+
+  const letMatch = text.match(/^let\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (letMatch) {
+    const [, name, value] = letMatch
+    return `Preview: ${name} is set to ${value}.`
+  }
+
+  const constMatch = text.match(/^const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (constMatch) {
+    const [, name, value] = constMatch
+    return `Preview: ${name} is fixed at ${value}.`
+  }
+
+  const updateMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*([\+\-])\s*(.+);$/)
+  if (updateMatch) {
+    const [, name, op, value] = updateMatch
+    if (op === '+') return `Preview: ${name} will increase by ${value}.`
+    return `Preview: ${name} will decrease by ${value}.`
+  }
+
+  const consoleMatch = text.match(/^console\.log\((.*)\);$/)
+  if (consoleMatch) {
+    return `Preview: the program will print ${consoleMatch[1]} in the console.`
+  }
+
+  const ifMatch = text.match(/^if\s*\((.*)\)\s*\{$/)
+  if (ifMatch) {
+    return `Preview: the next lines only run if ${ifMatch[1]} is true.`
+  }
+
+  const elseMatch = text.match(/^}\s*else\s*{$|^else\s*{$/)
+  if (elseMatch) {
+    return 'Preview: this block runs when the earlier if condition is false.'
+  }
+
+  const forMatch = text.match(/^for\s*\((.*?);(.*?);(.*?)\)\s*\{$/)
+  if (forMatch) {
+    return 'Preview: the code inside this loop will repeat several times.'
+  }
+
+  const callMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\((.*)\);$/)
+  if (callMatch) {
+    const [, name] = callMatch
+    return `Preview: calling ${name} will run that function’s code.`
+  }
+
+  return 'Preview: this line contributes to the program being built.'
+}
+
 export default function PracticePage() {
   const { unitId, stepId } = useParams()
-  const navigate = useNavigate()
   const inputRef = useRef(null)
+  const advanceTimeoutRef = useRef(null)
+  const consoleDebounceRef = useRef(null)
 
   const unit = useMemo(
     () => UNITS.find((u) => u.id === Number(unitId)) || UNITS[0],
@@ -46,74 +458,63 @@ export default function PracticePage() {
   const [perRow, setPerRow] = useState(getPerRow())
 
   const [hasStarted, setHasStarted] = useState(false)
-  const [targetIndex, setTargetIndex] = useState(0)
   const [overlayDismissed, setOverlayDismissed] = useState(false)
+  const [promptIndex, setPromptIndex] = useState(0)
+  const [hasCompletedFirstCycle, setHasCompletedFirstCycle] = useState(false)
 
-  // Adaptive tier system (persisted per step)
-  const [tier, setTier] = useState(1)
-  const startTimeRef = useRef(null)
+  const [liveElapsedMs, setLiveElapsedMs] = useState(0)
+  const [promptAnimating, setPromptAnimating] = useState(false)
+  const [consoleResult, setConsoleResult] = useState({
+    status: 'idle',
+    lines: ['No code to run yet.'],
+  })
 
-  // --------- localStorage helpers ----------
-  function tierKey() {
-    return `type2code:tier:${unitId}:${stepId}`
-  }
+  const autoAdvanceLockRef = useRef(false)
 
-  function loadTier() {
-    const raw = localStorage.getItem(tierKey())
-    const n = Number(raw)
-    return Number.isFinite(n) && n > 0 ? n : 1
-  }
+  const sessionIdRef = useRef(null)
+  const sessionStartRef = useRef(null)
 
-  function saveTier(nextTier) {
-    localStorage.setItem(tierKey(), String(nextTier))
-  }
+  const cycleWrongRef = useRef(0)
+  const cycleFixedRef = useRef(0)
+  const cycleTargetCharsRef = useRef(0)
 
-  // streak persists per step
-  const streakKey = useMemo(
-    () => `type2code:streak:${unitId}:${stepId}`,
-    [unitId, stepId]
-  )
-
-  function loadStreak() {
-    const raw = localStorage.getItem(streakKey)
-    try {
-      const s = raw ? JSON.parse(raw) : null
-      return {
-        promote: Number(s?.promote) || 0,
-        demote: Number(s?.demote) || 0,
-      }
-    } catch {
-      return { promote: 0, demote: 0 }
-    }
-  }
-
-  function saveStreak(s) {
-    localStorage.setItem(streakKey, JSON.stringify(s))
-  }
-
-  function clearTierAndStreak() {
-    localStorage.removeItem(streakKey)
-    localStorage.removeItem(tierKey())
-    setTier(1)
-    setTargetIndex(0)
-    resetTypingForNextTarget()
-  }
-
-  // Simple rules (can be overridden per-lesson via lesson.tierRules)
-  const rules = useMemo(() => {
-    const defaults = {
-      minTier: 1,
-      maxTier: 3,
-      promoteIf: { wpm: 28, accuracy: 0.95, streak: 2 },
-      demoteIf: { wpm: 14, accuracy: 0.85, streak: 2 },
-    }
-    return { ...defaults, ...(lesson.tierRules || {}) }
-  }, [lesson])
-  // ----------------------------------------
+  const typingStartRef = useRef(null)
 
   function focusInput() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }
+
+  const prompts = useMemo(() => {
+    return flattenLessonTargets(lesson, perRow)
+  }, [lesson, perRow])
+
+  const safePromptIndex =
+    prompts.length > 0 ? Math.min(promptIndex, prompts.length - 1) : 0
+
+  const target = normalizePromptText(prompts[safePromptIndex] ?? '')
+  const doneExact = isExactRenderedMatch(typed, target)
+  const expectedChar = typed.length < target.length ? target[typed.length] : null
+
+  const explanation = explainCode(target.trim())
+  const preview = previewExecution(target.trim())
+
+  const executableSource = useMemo(() => {
+    return buildExecutableSource(prompts, safePromptIndex)
+  }, [prompts, safePromptIndex])
+
+  const progressPercent =
+    target.length > 0
+      ? Math.min(100, Math.round((typed.length / target.length) * 100))
+      : 0
+
+  const liveWpm = useMemo(() => {
+    if (!hasStarted || !typingStartRef.current || typed.length === 0) return 0
+
+    const minutes = liveElapsedMs / 60000
+    if (minutes <= 0) return 0
+
+    return Math.max(0, Math.round((typed.length / 5) / minutes))
+  }, [typed.length, liveElapsedMs, hasStarted])
 
   useEffect(() => {
     const onResize = () => setPerRow(getPerRow())
@@ -121,192 +522,320 @@ export default function PracticePage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Reset local state when changing lesson (DO NOT clear streak here; it should persist per step)
+  useEffect(() => {
+    saveLastPracticeRoute(unitId, stepId)
+  }, [unitId, stepId])
+
   useEffect(() => {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
     setHasStarted(false)
-    setTargetIndex(0)
     setOverlayDismissed(false)
-    startTimeRef.current = null
+    setPromptIndex(0)
+    setHasCompletedFirstCycle(false)
+    setLiveElapsedMs(0)
+    setPromptAnimating(false)
+    setConsoleResult({
+      status: 'idle',
+      lines: ['No code to run yet.'],
+    })
 
-    const t = loadTier()
-    setTier(t)
+    autoAdvanceLockRef.current = false
+
+    sessionIdRef.current = null
+    sessionStartRef.current = null
+    cycleWrongRef.current = 0
+    cycleFixedRef.current = 0
+    cycleTargetCharsRef.current = 0
+    typingStartRef.current = null
+
+    if (advanceTimeoutRef.current) {
+      clearTimeout(advanceTimeoutRef.current)
+      advanceTimeoutRef.current = null
+    }
+
+    if (consoleDebounceRef.current) {
+      clearTimeout(consoleDebounceRef.current)
+      consoleDebounceRef.current = null
+    }
 
     focusInput()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, stepId])
 
-  const tierKeyStr = String(tier)
+  useEffect(() => {
+    if (!hasStarted || !typingStartRef.current) return
 
-  const hasTierTargets =
-    lesson.targetsByTier &&
-    typeof lesson.targetsByTier === 'object' &&
-    Array.isArray(lesson.targetsByTier[tierKeyStr]) &&
-    lesson.targetsByTier[tierKeyStr].length > 0
+    const timer = setInterval(() => {
+      setLiveElapsedMs(Date.now() - typingStartRef.current)
+    }, 200)
 
-  const useTargets = Array.isArray(lesson.targets) && lesson.targets.length > 0
+    return () => clearInterval(timer)
+  }, [hasStarted, promptIndex])
 
-  const targets = useMemo(() => {
-    if (hasTierTargets) return lesson.targetsByTier[tierKeyStr]
-    if (useTargets) return lesson.targets
-    return [buildGrid(lesson.chunk, lesson.repeats, perRow)]
-  }, [lesson, perRow, useTargets, hasTierTargets, tierKeyStr])
+  useEffect(() => {
+    return () => {
+      if (advanceTimeoutRef.current) {
+        clearTimeout(advanceTimeoutRef.current)
+      }
+      if (consoleDebounceRef.current) {
+        clearTimeout(consoleDebounceRef.current)
+      }
+    }
+  }, [])
 
-  const target = targets[Math.min(targetIndex, targets.length - 1)] ?? ''
+  useEffect(() => {
+    if (consoleDebounceRef.current) {
+      clearTimeout(consoleDebounceRef.current)
+    }
 
-  const doneExact = typed === target
-  const expectedChar = typed.length < target.length ? target[typed.length] : null
+    consoleDebounceRef.current = setTimeout(() => {
+      setConsoleResult(runLessonCode(executableSource))
+    }, 200)
 
-  function resetTypingForNextTarget() {
+    return () => {
+      if (consoleDebounceRef.current) {
+        clearTimeout(consoleDebounceRef.current)
+        consoleDebounceRef.current = null
+      }
+    }
+  }, [executableSource])
+
+  useEffect(() => {
+    if (!target) return
+    if (!doneExact) return
+    if (autoAdvanceLockRef.current) return
+
+    autoAdvanceLockRef.current = true
+
+    if (advanceTimeoutRef.current) {
+      clearTimeout(advanceTimeoutRef.current)
+    }
+
+    advanceTimeoutRef.current = setTimeout(() => {
+      advancePrompt({
+        promptIndex: safePromptIndex,
+        targetLength: target.length,
+        wrongCount,
+        fixedCount,
+      })
+    }, 250)
+
+    return () => {
+      if (advanceTimeoutRef.current) {
+        clearTimeout(advanceTimeoutRef.current)
+        advanceTimeoutRef.current = null
+      }
+    }
+  }, [doneExact, safePromptIndex, target, wrongCount, fixedCount])
+
+  async function ensureBackendSessionStarted() {
+    if (sessionIdRef.current) return
+
+    const backendLessonId = lesson.backendLessonId
+    if (!backendLessonId) {
+      console.warn(
+        'No lesson.backendLessonId set in UNITS for this lesson; backend tracking disabled for this step.'
+      )
+      return
+    }
+
+    try {
+      const data = await startPractice(backendLessonId, 'practice')
+      const sid = data?.session_id ?? data?.id ?? null
+
+      if (!sid) {
+        console.warn('Backend /api/practice/start returned no session_id:', data)
+        return
+      }
+
+      sessionIdRef.current = sid
+      sessionStartRef.current = Date.now()
+    } catch (e) {
+      console.error('Failed to start backend practice session:', e)
+    }
+  }
+
+  async function submitBackendCycleIfPossible() {
+    const sessionId = sessionIdRef.current
+    const startMs = sessionStartRef.current
+
+    if (!sessionId || !startMs) return
+
+    const timeSeconds = Math.max(1, (Date.now() - startMs) / 1000)
+    const durationSeconds = Math.max(1, Math.round(timeSeconds))
+
+    const chars = Math.max(1, cycleTargetCharsRef.current)
+    const minutes = timeSeconds / 60
+    const wpm = (chars / 5) / Math.max(minutes, 0.0001)
+
+    const totalErrors = cycleWrongRef.current + cycleFixedRef.current
+    const accuracy = chars / Math.max(chars + totalErrors, 1)
+
+    try {
+      await submitPractice({
+        session_id: sessionId,
+        wpm,
+        accuracy,
+        error_count: totalErrors,
+        time_seconds: timeSeconds,
+        duration_seconds: durationSeconds,
+        tier: null,
+        details: {
+          unit_id: Number(unitId),
+          step_id: Number(stepId),
+          cycle_completed: true,
+          prompt_count: prompts.length,
+        },
+      })
+    } catch (e) {
+      console.error('Failed to submit backend practice results:', e)
+    }
+  }
+
+  function triggerPromptTransition() {
+    setPromptAnimating(true)
+    setTimeout(() => {
+      setPromptAnimating(false)
+    }, 180)
+  }
+
+  function resetTypingForNextPrompt() {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
-    startTimeRef.current = null
+    setLiveElapsedMs(0)
+    typingStartRef.current = hasStarted ? Date.now() : null
+    autoAdvanceLockRef.current = false
+    triggerPromptTransition()
     focusInput()
   }
 
-  // returns true if tier changed (caller should stop advancing)
-  function updateTierAfterTargetComplete() {
-    const start = startTimeRef.current
-    if (!start) return false
+  function markLessonCompletedOnce() {
+    if (hasCompletedFirstCycle) return
 
-    const durationMs = Math.max(1, Date.now() - start)
-    const minutes = durationMs / 60000
-
-    const chars = target.length
-    const wpm = (chars / 5) / minutes
-
-    const totalTypedEvents = chars + wrongCount + fixedCount
-    const accuracy = totalTypedEvents > 0 ? chars / totalTypedEvents : 1
-
-    const s = loadStreak()
-
-    const promoteHit = wpm >= rules.promoteIf.wpm && accuracy >= rules.promoteIf.accuracy
-    const demoteHit = wpm <= rules.demoteIf.wpm || accuracy <= rules.demoteIf.accuracy
-
-    let nextStreak = { ...s }
-
-    if (promoteHit) {
-      nextStreak.promote += 1
-      nextStreak.demote = 0
-    } else if (demoteHit) {
-      nextStreak.demote += 1
-      nextStreak.promote = 0
-    } else {
-      nextStreak.promote = 0
-      nextStreak.demote = 0
-    }
-
-    let nextTier = tier
-
-    if (nextStreak.promote >= rules.promoteIf.streak) {
-      nextTier = Math.min(rules.maxTier, tier + 1)
-      nextStreak = { promote: 0, demote: 0 }
-    } else if (nextStreak.demote >= rules.demoteIf.streak) {
-      nextTier = Math.max(rules.minTier, tier - 1)
-      nextStreak = { promote: 0, demote: 0 }
-    }
-
-    saveStreak(nextStreak)
-
-    if (nextTier !== tier) {
-      setTier(nextTier)
-      saveTier(nextTier)
-      setTargetIndex(0)
-      resetTypingForNextTarget()
-      return true
-    }
-
-    return false
-  }
-
-  function completeAndNextLesson() {
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
-
-    // clear tier streaks for this step when completed (so next time they start fresh)
-    localStorage.removeItem(streakKey)
-    localStorage.removeItem(tierKey())
-
-    setTyped('')
-    setWrongCount(0)
-    setFixedCount(0)
-    setHasStarted(false)
-    setTargetIndex(0)
-    setOverlayDismissed(false)
-
-    const idx = unit.lessons.findIndex((l) => l.stepId === Number(stepId))
-    const next = unit.lessons[idx + 1]
-    if (next) navigate(`/practice/${unit.id}/${next.stepId}`)
-    else navigate('/lessons')
+    setHasCompletedFirstCycle(true)
   }
 
-  function advance() {
-    const tierChanged = updateTierAfterTargetComplete()
-    if (tierChanged) return
+  async function startNextBackendCycle() {
+    sessionIdRef.current = null
+    sessionStartRef.current = null
+    cycleWrongRef.current = 0
+    cycleFixedRef.current = 0
+    cycleTargetCharsRef.current = 0
 
-    if (targetIndex < targets.length - 1) {
-      setTargetIndex((i) => i + 1)
-      resetTypingForNextTarget()
+    if (hasStarted) {
+      await ensureBackendSessionStarted()
+    }
+  }
+
+  async function advancePrompt(snapshot) {
+    cycleWrongRef.current += snapshot.wrongCount
+    cycleFixedRef.current += snapshot.fixedCount
+    cycleTargetCharsRef.current += snapshot.targetLength
+
+    const isLastPrompt = snapshot.promptIndex >= prompts.length - 1
+
+    if (!isLastPrompt) {
+      setPromptIndex((prev) => {
+        const nextIndex = Math.min(prev + 1, prompts.length - 1)
+        return nextIndex
+      })
+      resetTypingForNextPrompt()
       return
     }
 
-    completeAndNextLesson()
+    await submitBackendCycleIfPossible()
+    markLessonCompletedOnce()
+
+    setPromptIndex(0)
+    resetTypingForNextPrompt()
+    await startNextBackendCycle()
+  }
+
+  function beginSessionIfNeeded() {
+    if (!hasStarted) setHasStarted(true)
+    if (!overlayDismissed) setOverlayDismissed(true)
+    if (!typingStartRef.current) typingStartRef.current = Date.now()
+    ensureBackendSessionStarted()
+    focusInput()
   }
 
   function onKeyDown(e) {
-    if (
-      !hasStarted &&
-      (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
-    ) {
-      setHasStarted(true)
-      setOverlayDismissed(true)
-      if (!startTimeRef.current) startTimeRef.current = Date.now()
-    }
+    if (!target) return
 
-    if (doneExact) {
-      if (e.key === ' ' || e.key === 'ArrowRight') {
-        e.preventDefault()
-        advance()
-      }
-      return
-    }
-
-    if (typed.length >= target.length && e.key !== 'Backspace') {
+    if (e.key === 'Tab') {
       e.preventDefault()
+
+      const tabText = '  '
+
+      if (typed.length + tabText.length <= target.length) {
+        let nextValue = typed
+        let nextWrongCount = wrongCount
+
+        for (let i = 0; i < tabText.length; i += 1) {
+          const nextChar = tabText[i]
+          const expectedChar = target[typed.length + i]
+
+          nextValue += nextChar
+
+          if (expectedChar !== nextChar) {
+            nextWrongCount += 1
+          }
+        }
+
+        if (nextWrongCount !== wrongCount) {
+          setWrongCount(nextWrongCount)
+        }
+
+        setTyped(nextValue)
+
+        if (!typingStartRef.current) {
+          typingStartRef.current = Date.now()
+        }
+      }
+
       return
     }
 
     if (e.key === 'Backspace') {
-      if (typed.length > 0) {
-        setTyped((t) => t.slice(0, -1))
-        setFixedCount((n) => n + 1)
+      e.preventDefault()
+
+      if (typed.length === 0) return
+
+      const removedChar = typed[typed.length - 1]
+      const expectedChar = target[typed.length - 1]
+
+      if (removedChar !== expectedChar) {
+        setFixedCount((v) => v + 1)
       }
-      e.preventDefault()
+
+      setTyped(typed.slice(0, -1))
       return
     }
 
-    if (e.key === 'Tab') {
+    if (e.key.length === 1) {
       e.preventDefault()
+
+      if (typed.length >= target.length) return
+
+      const expectedChar = target[typed.length]
+
+      if (e.key !== expectedChar) {
+        setWrongCount((v) => v + 1)
+      }
+
+      setTyped(typed + e.key)
+
+      if (!typingStartRef.current) {
+        typingStartRef.current = Date.now()
+      }
+
       return
     }
-
-    if (e.key === 'Enter') {
-      if (expectedChar !== '\n') setWrongCount((n) => n + 1)
-      setTyped((t) => t + '\n')
-      e.preventDefault()
-      return
-    }
-
-    if (e.key.length !== 1) return
-
-    if (expectedChar !== e.key) setWrongCount((n) => n + 1)
-
-    setTyped((t) => t + e.key)
-    e.preventDefault()
   }
 
   return (
@@ -326,11 +855,9 @@ export default function PracticePage() {
             <div className="practice-sub">
               Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>{' '}
               <span style={{ opacity: 0.7 }}>
-                (Step {targetIndex + 1}/{targets.length})
+                (Prompt {safePromptIndex + 1}/{prompts.length})
               </span>
-              {lesson.targetsByTier && (
-                <span style={{ opacity: 0.7 }}> — Tier {tier}</span>
-              )}
+              <span style={{ opacity: 0.7 }}> — Continuous Practice</span>
             </div>
 
             <div className="practice-rules">
@@ -347,57 +874,61 @@ export default function PracticePage() {
             <Link to="/lessons" className="practice-back">
               ← Back
             </Link>
+          </div>
+        </div>
 
-            {/* Debug / UX helper: reset tier+streak for current step */}
-            <button
-              type="button"
-              className="practice-reset"
-              onClick={() => clearTierAndStreak()}
-              title="Reset tier and streak for this step"
-              style={{
-                marginLeft: 12,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid rgba(0,0,0,0.15)',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-            >
-              Reset Tier
-            </button>
+        <div className="practice-livebar">
+          <div className="practice-metric">
+            WPM: <b>{liveWpm}</b>
+          </div>
+          <div className="practice-metric">
+            Progress: <b>{progressPercent}%</b>
+          </div>
+          <div className="practice-progress">
+            <div
+              className="practice-progress-fill"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
 
         <div className="type-area">
-          <div className="type-box">
-            {!overlayDismissed && typed.length === 0 && (
-              <div
-                className="start-overlay"
-                onMouseDown={() => {
-                  setHasStarted(true)
-                  setOverlayDismissed(true)
-                  if (!startTimeRef.current) startTimeRef.current = Date.now()
-                  focusInput()
-                }}
-                onClick={() => {
-                  setHasStarted(true)
-                  setOverlayDismissed(true)
-                  if (!startTimeRef.current) startTimeRef.current = Date.now()
-                  focusInput()
-                }}
-                role="presentation"
-                aria-hidden="true"
-              >
-                <div className="start-overlay-card">
-                  <div className="start-title">Click here to start typing</div>
-                  <div className="start-sub">
-                    Then type the <b>highlighted</b> character (spaces count)
+          <div className={`editor-shell ${promptAnimating ? 'prompt-transition' : ''}`}>
+            <div className="editor-topbar">
+              <div className="editor-dots">
+                <span className="dot red" />
+                <span className="dot yellow" />
+                <span className="dot green" />
+              </div>
+
+              <div className="editor-filename">lesson.js</div>
+              <div className="editor-language">JavaScript</div>
+            </div>
+
+            <div className="editor-body">
+              {!overlayDismissed && typed.length === 0 && (
+                <div
+                  className="start-overlay"
+                  onMouseDown={() => {
+                    beginSessionIfNeeded()
+                  }}
+                  onClick={() => {
+                    beginSessionIfNeeded()
+                  }}
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <div className="start-overlay-card">
+                    <div className="start-title">Open lesson.js and start typing</div>
+                    <div className="start-sub">
+                      Type the code exactly as shown to complete the lesson
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <ChunkGrid target={target} typed={typed} />
+              <ChunkGrid target={target} typed={typed} />
+            </div>
           </div>
 
           <input
@@ -410,6 +941,46 @@ export default function PracticePage() {
           />
         </div>
 
+        <div className="practice-insight">
+          <div className="insight-card">
+            <div className="insight-title">LIVE EXPLANATION</div>
+            <div className="insight-text">{explanation}</div>
+          </div>
+
+          <div className="insight-card">
+            <div className="insight-title">EXECUTION PREVIEW</div>
+            <div className="insight-text">{preview}</div>
+          </div>
+
+          <div className={`insight-card console-card ${consoleResult.status}`}>
+            <div className="insight-title">CONSOLE OUTPUT</div>
+
+            <div className="console-shell">
+              <div className="console-header">
+                <span className="console-label">lesson-console</span>
+                <span className="console-state">
+                  {consoleResult.status === 'success'
+                    ? 'READY'
+                    : consoleResult.status === 'building'
+                    ? 'BUILDING'
+                    : consoleResult.status === 'error'
+                    ? 'WAITING / INCOMPLETE'
+                    : 'IDLE'}
+                </span>
+              </div>
+
+              <div className="console-body">
+                {consoleResult.lines.map((line, idx) => (
+                  <div key={idx} className="console-line">
+                    <span className="console-prompt">&gt;</span>
+                    <span className="console-text">{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="practice-hud">
           <span>
             Wrong: <b>{wrongCount}</b>
@@ -418,10 +989,10 @@ export default function PracticePage() {
             Fixed: <b className="fixed">{fixedCount}</b>
           </span>
 
-          {doneExact && (
-            <span className="done-hint">
-              Done — press <b>Space</b> or <b>→</b> for next
-            </span>
+          {doneExact && <span className="done-hint">Nice — continuing…</span>}
+
+          {hasCompletedFirstCycle && (
+            <span className="done-hint">First full cycle complete</span>
           )}
         </div>
 
@@ -430,22 +1001,10 @@ export default function PracticePage() {
             <Keyboard expected={expectedChar} />
           </div>
         )}
-
-        {doneExact && (
-          <div className="next-row">
-            <button className="btn-primary" onClick={advance}>
-              Next (Space / →)
-            </button>
-          </div>
-        )}
       </main>
     </div>
   )
 }
-
-// ------- Below here: keep your existing components unchanged -------
-// If your file already has ChunkGrid/Keyboard definitions, keep them as-is.
-// Included here for completeness if you need a single-file paste.
 
 function ChunkGrid({ target, typed }) {
   const lines = target.split('\n')
@@ -455,28 +1014,129 @@ function ChunkGrid({ target, typed }) {
     return acc
   }, [])
 
+  function getCurrentLineIndex() {
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (typed.length >= lineStarts[i]) return i
+    }
+    return 0
+  }
+
+  function getTokenClass(line, charIndex) {
+    const keywords = ['function', 'return', 'const', 'let', 'if', 'else', 'for', 'console', 'log']
+    const punctuationChars = '{}()[];,.+-=*/<>!&|'
+
+    for (const keyword of keywords) {
+      const before = charIndex === 0 ? ' ' : line[charIndex - 1]
+      const slice = line.slice(charIndex, charIndex + keyword.length)
+      const after = line[charIndex + keyword.length] ?? ' '
+
+      const beforeOk = !/[A-Za-z0-9_$]/.test(before)
+      const afterOk = !/[A-Za-z0-9_$]/.test(after)
+
+      if (slice === keyword && beforeOk && afterOk) return ' keyword'
+    }
+
+    if (/\d/.test(line[charIndex])) return ' number'
+    if (punctuationChars.includes(line[charIndex])) return ' punctuation'
+
+    return ''
+  }
+
+  function getStringMask(line) {
+    const mask = Array(line.length).fill(false)
+    let quote = null
+
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i]
+
+      if (!quote && (ch === '"' || ch === "'" || ch === '`')) {
+        quote = ch
+        mask[i] = true
+      } else if (quote) {
+        mask[i] = true
+        if (ch === quote && line[i - 1] !== '\\') {
+          quote = null
+        }
+      }
+    }
+
+    return mask
+  }
+
+  const currentLineIndex = getCurrentLineIndex()
+
   return (
     <div className="type-grid">
       {lines.map((line, lineIdx) => {
         const chars = line.split('')
         const startIndex = lineStarts[lineIdx]
+        const isEmptyLine = line.length === 0
+        const lineEndIndex = startIndex + line.length
+        const cursorOnEmptyLine = isEmptyLine && typed.length === startIndex
+        const stringMask = getStringMask(line)
+
+        const lineFinished =
+          !isEmptyLine &&
+          typed.length >= lineEndIndex &&
+          typed.slice(startIndex, lineEndIndex) === line
+
+        const showNextLineIndicator =
+          lineIdx === currentLineIndex + 1 &&
+          currentLineIndex < lines.length - 1 &&
+          typed.length === lineStarts[lineIdx]
 
         return (
-          <div key={lineIdx} className="type-line">
-            {chars.map((ch, i) => {
-              const idx = startIndex + i
-              const typedChar = typed[idx]
-              let cls = 'char'
+          <div
+            key={lineIdx}
+            className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''} ${lineFinished ? 'line-finished-row' : ''}`}
+          >
+            <div
+              className={`line-number ${showNextLineIndicator ? 'line-number-next' : ''}`}
+            >
+              {lineIdx + 1}
+            </div>
 
-              if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
-              else if (idx === typed.length) cls += ' cursor'
-
-              return (
-                <span key={i} className={cls}>
-                  {ch === ' ' ? '\u00A0' : ch}
+            <div className="code-line">
+              {showNextLineIndicator && (
+                <span className="next-line-indicator" aria-hidden="true">
+                  ↳
                 </span>
-              )
-            })}
+              )}
+
+              {isEmptyLine ? (
+                <span
+                  className={`char empty-line-marker ${cursorOnEmptyLine ? 'cursor' : ''}`}
+                >
+                  {'\u00A0'}
+                </span>
+              ) : (
+                chars.map((ch, i) => {
+                  const idx = startIndex + i
+                  const typedChar = typed[idx]
+
+                  let cls = 'char'
+                  if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
+                  else if (idx === typed.length) cls += ' cursor'
+
+                  if (stringMask[i]) cls += ' string'
+                  else cls += getTokenClass(line, i)
+
+                  if (lineFinished) cls += ' line-complete-flash'
+
+                  return (
+                    <span key={i} className={cls}>
+                      {ch === ' ' ? '\u00A0' : ch}
+                    </span>
+                  )
+                })
+              )}
+
+              {lineFinished && (
+                <span className="line-complete-badge" aria-hidden="true">
+                  ✔
+                </span>
+              )}
+            </div>
           </div>
         )
       })}
@@ -493,13 +1153,14 @@ const KEY_ROWS = [
 ]
 
 function Keyboard({ expected }) {
-  const keyToHighlight = expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
+  const keyToHighlight =
+    expected === ' ' ? 'Space' : expected === '\n' ? 'Enter' : expected
 
   return (
     <div className="keyboard">
       {KEY_ROWS.map((row, idx) => (
         <div className="key-row" key={idx}>
-          {row.map((k) => {
+          {row.map((k, i) => {
             const isBig = ['Backspace', 'Tab', 'Caps', 'Enter', 'Shift'].includes(k)
             const isSpace = k === 'Space'
             const active =
@@ -509,7 +1170,7 @@ function Keyboard({ expected }) {
 
             return (
               <div
-                key={k}
+                key={`${k}-${idx}-${i}`}
                 className={`key ${isBig ? 'big' : ''} ${isSpace ? 'space' : ''} ${active ? 'active' : ''}`}
               >
                 {k}

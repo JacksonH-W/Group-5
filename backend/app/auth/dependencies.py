@@ -1,9 +1,24 @@
 from fastapi import HTTPException, status, Request
-from app.db import supabase
 
 
 def get_current_user(request: Request) -> dict:
-    user_id = request.session.get("user_id")
+    """
+    Returns the authenticated user's UUID from the session.
+
+    Assumes:
+    - SessionMiddleware is installed
+    - request.session["user_id"] stores auth.users.id (UUID string)
+    """
+
+    # Ensure SessionMiddleware is active
+    session = getattr(request, "session", None)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session middleware not configured.",
+        )
+
+    user_id = session.get("user_id")
 
     if not user_id:
         raise HTTPException(
@@ -11,21 +26,8 @@ def get_current_user(request: Request) -> dict:
             detail="Not authenticated",
         )
 
-    # user_id MUST be auth.users.id UUID
-    # Fetch profile row from public.users
-    result = (
-        supabase
-        .table("users")
-        .select("*")
-        .eq("id", user_id)
-        .limit(1)
-        .execute()
-    )
+    # We trust this UUID is from auth.users.id
+    # Do NOT query public.users here.
+    # Let Supabase RLS handle access control.
 
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User profile not found",
-        )
-
-    return result.data[0]
+    return {"id": user_id}
