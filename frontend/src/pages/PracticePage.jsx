@@ -160,118 +160,118 @@ function friendlyConsoleError(message) {
 }
 
 function runLessonCode(source) {
-    const code = String(source ?? '').trim()
-  
-    if (!code) {
-      return {
-        status: 'idle',
-        lines: ['No code to run yet.'],
-      }
+  const code = String(source ?? '').trim()
+
+  if (!code) {
+    return {
+      status: 'idle',
+      lines: ['No code to run yet.'],
     }
-  
-    if (!looksRunnable(code)) {
-      const previewLines = code.split('\n').slice(-6)
-      return {
-        status: 'building',
-        lines: ['Building snippet...', ...previewLines],
-      }
+  }
+
+  if (!looksRunnable(code)) {
+    const previewLines = code.split('\n').slice(-6)
+    return {
+      status: 'building',
+      lines: ['Building snippet...', ...previewLines],
     }
-  
-    const definedFunctions = new Set()
-    const functionDefRegex = /function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g
-    let defMatch
-  
-    while ((defMatch = functionDefRegex.exec(code)) !== null) {
-      definedFunctions.add(defMatch[1])
+  }
+
+  const definedFunctions = new Set()
+  const functionDefRegex = /function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g
+  let defMatch
+
+  while ((defMatch = functionDefRegex.exec(code)) !== null) {
+    definedFunctions.add(defMatch[1])
+  }
+
+  const lines = code.split('\n').map((line) => line.trim()).filter(Boolean)
+
+  const calledFunctions = []
+  const callRegex = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*\(.*\);?$/
+
+  for (const line of lines) {
+    if (
+      line.startsWith('function ') ||
+      line.startsWith('if ') ||
+      line.startsWith('for ') ||
+      line.startsWith('while ') ||
+      line.startsWith('switch ') ||
+      line.startsWith('return ') ||
+      line.startsWith('const ') ||
+      line.startsWith('let ') ||
+      line.startsWith('var ') ||
+      line.startsWith('console.')
+    ) {
+      continue
     }
-  
-    const lines = code.split('\n').map((line) => line.trim()).filter(Boolean)
-  
-    const calledFunctions = []
-    const callRegex = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*\(.*\);?$/
-  
-    for (const line of lines) {
-      if (
-        line.startsWith('function ') ||
-        line.startsWith('if ') ||
-        line.startsWith('for ') ||
-        line.startsWith('while ') ||
-        line.startsWith('switch ') ||
-        line.startsWith('return ') ||
-        line.startsWith('const ') ||
-        line.startsWith('let ') ||
-        line.startsWith('var ') ||
-        line.startsWith('console.')
-      ) {
-        continue
-      }
-  
-      const match = line.match(callRegex)
-      if (match) {
-        calledFunctions.push(match[1])
-      }
+
+    const match = line.match(callRegex)
+    if (match) {
+      calledFunctions.push(match[1])
     }
-  
-    const missingFunctions = calledFunctions.filter(
-      (name) => !definedFunctions.has(name)
-    )
-  
-    if (missingFunctions.length > 0) {
-      const previewLines = code.split('\n').slice(-6)
-      return {
-        status: 'building',
-        lines: [
-          'This lesson is practicing function calls.',
-          `Waiting for function definition: ${missingFunctions[0]}()`,
-          ...previewLines,
-        ],
-      }
+  }
+
+  const missingFunctions = calledFunctions.filter(
+    (name) => !definedFunctions.has(name)
+  )
+
+  if (missingFunctions.length > 0) {
+    const previewLines = code.split('\n').slice(-6)
+    return {
+      status: 'building',
+      lines: [
+        'This lesson is practicing function calls.',
+        `Waiting for function definition: ${missingFunctions[0]}()`,
+        ...previewLines,
+      ],
     }
-  
-    const logs = []
-  
-    const consoleProxy = {
-      log: (...args) => {
-        logs.push(
-          args
-            .map((arg) => {
-              if (typeof arg === 'string') return arg
-              try {
-                return JSON.stringify(arg)
-              } catch {
-                return String(arg)
-              }
-            })
-            .join(' ')
-        )
-      },
-    }
-  
-    try {
-      const runner = new Function(
-        'console',
-        `
+  }
+
+  const logs = []
+
+  const consoleProxy = {
+    log: (...args) => {
+      logs.push(
+        args
+          .map((arg) => {
+            if (typeof arg === 'string') return arg
+            try {
+              return JSON.stringify(arg)
+            } catch {
+              return String(arg)
+            }
+          })
+          .join(' ')
+      )
+    },
+  }
+
+  try {
+    const runner = new Function(
+      'console',
+      `
   "use strict";
   ${code}
   `
-      )
-  
-      runner(consoleProxy)
-  
-      return {
-        status: 'success',
-        lines:
-          logs.length > 0
-            ? ['Code executed successfully.', ...logs]
-            : ['Code executed successfully.', 'No console output.'],
-      }
-    } catch (err) {
-      return {
-        status: 'error',
-        lines: ['Code could not run yet.', friendlyConsoleError(err?.message)],
-      }
+    )
+
+    runner(consoleProxy)
+
+    return {
+      status: 'success',
+      lines:
+        logs.length > 0
+          ? ['Code executed successfully.', ...logs]
+          : ['Code executed successfully.', 'No console output.'],
+    }
+  } catch (err) {
+    return {
+      status: 'error',
+      lines: ['Code could not run yet.', friendlyConsoleError(err?.message)],
     }
   }
+}
 
 function explainCode(line) {
   const text = String(line ?? '').trim()
@@ -935,7 +935,7 @@ export default function PracticePage() {
             ref={inputRef}
             className="hidden-capture"
             value=""
-            onChange={() => {}}
+            onChange={() => { }}
             onKeyDown={onKeyDown}
             autoFocus
           />
@@ -962,10 +962,10 @@ export default function PracticePage() {
                   {consoleResult.status === 'success'
                     ? 'READY'
                     : consoleResult.status === 'building'
-                    ? 'BUILDING'
-                    : consoleResult.status === 'error'
-                    ? 'WAITING / INCOMPLETE'
-                    : 'IDLE'}
+                      ? 'BUILDING'
+                      : consoleResult.status === 'error'
+                        ? 'WAITING / INCOMPLETE'
+                        : 'IDLE'}
                 </span>
               </div>
 
