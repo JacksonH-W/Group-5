@@ -3,7 +3,7 @@
   This software provides a learning environment for students and programmers to learn code through repetition. Oftentimes, when someone is learning how to code, jumping straight into learning syntax offers a harsh learning curve. Type2Code eases this by helping users adjust to this syntax by repetitively typing and mastering specific concepts and functions in Python.
   
 <h3>How to access the software</h3>  
-To use the software, access the URL for our web page at https://group-5-pink.vercel.app/
+To access the software, access the URL for our web page at https://group-5-pink.vercel.app/
 
 <h3>How to use the software</h3>  
 To use the software, navigate to the Registration page, create an account with a valid email, and a password longer than 8 characters. Click register and you will be navigated to the dashboard where you can access the first lesson. Now you can practice typing coding syntax with live explanations.
